@@ -1,0 +1,43 @@
+[package]
+name = "utf8conv"
+version = "0.0.1"
+authors = [ "thomaswang1964@yahoo.com" ]
+description = "A UTF8 / Unicode Converter for no_std"
+license = "MIT or Apache 2.0"
+repository = "https://github.com/tttwang23/utf8conv"
+readme = "README.md"
+documentation = "https://docs.rs/utf8conv"
+keywords = ["parser", "unicode", "no_std"]
+categories = ["parsing", "no-std"]
+edition = "2021"
+autoexamples = false
+
+include = [
+  "LICENSE",
+  "LICENSE-MIT",
+  "README.md",
+  ".gitignore",
+  "Cargo.toml",
+  "/src/*.rs",
+  "/src/*/*.rs",
+  "/tests/*.rs"
+]
+
+[features]
+core = []
+alloc = ["core"]
+std = ["alloc", "core"]
+default = ["core"]
+docsrs = []
+
+[dev-dependencies]
+rand = { version = "0.8.3", features = ["small_rng"], default-features = false }
+doc-comment = "0.3"
+stackfmt = "0.1.2"
+
+[build-dependencies]
+version_check = "0.9"
+
+
+[badges]
+maintenance = { status = "experimental" }
