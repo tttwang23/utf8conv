@@ -37,13 +37,14 @@
 #[cfg(doctest)]
 extern crate doc_comment;
 
-
-pub use crate::utf8conv::Utf8ArrayParser;
-pub use crate::utf8conv::Utf32ArrayParser;
+pub use crate::utf8conv::Utf8Iter;
+pub use crate::utf8conv::Utf32Iter;
+pub use crate::utf8conv::Utf8Parser;
+pub use crate::utf8conv::Utf32Parser;
 pub use crate::utf8conv::UtfParserCommon;
-pub use crate::utf8conv::IncompleteEnum;
 pub use crate::utf8conv::Utf8TypeEnum;
 pub use crate::utf8conv::Utf8EndEnum;
-pub use crate::utf8conv::buf::FifoU8;
+pub use crate::utf8conv::MoreEnum;
+pub use crate::utf8conv::buf::FifoBytes;
 
 mod utf8conv;
