@@ -1,11 +1,17 @@
+// Thomas Wang and utf8conv contributors, Copyright 2022
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
 
-//! Thomas Wang and utf8conv contributors, Copyright 2022
 //!
-//! Implementation of Utf8ArrayParser, and Utf32ArrayParser, including the
-//! supporting UTF8 / UTF32 recognition and translation functions.
+//! Implementation of UTF 8 / UTF32 converters and converting iterators,
+//! including the supporting recognition and translation functions.
 //!
-//! Works on a single buffer as well as multiple buffers without needing heap allocation.
-//! This is often the most performant approach.
+//! Works on a single buffer as well as multiple buffers without needing
+//! heap allocation.
 //!
 //! An invalid Unicode decoding sequence is replaced with an Unicode Replacement codepoint.
 //!
@@ -15,36 +21,43 @@
 //!
 //! Example:
 //!
-//! fn simple_example() {
-//!    let mybuffer = "abc\n".as_bytes();
-//!    let mut parser = Utf8ArrayParser::new();
-//!    let mut byte_slice = mybuffer;
-//!    loop {
-//!        match parser.parse_utf8_to_char(byte_slice)
-//!        {
-//!            Result::Ok((next_slice, ch)) => {
-//!                byte_slice = next_slice;
-//!                print!("{}", ch);
-//!            }
-//!            Result::Err(_) => {
-//!                // for a single buffer Err is always end of data
-//!                break;
-//!            }
-//!        }
-//!    }
+//! fn iterator_example() {
+//!     let mybuffer = "abc\n".as_bytes();
+//!     let mut utf8_ref_iter = mybuffer.iter();
+//!     let mut parser = FromUtf8::new();
+//!     let iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
+//!     for char_val in iterator {
+//!         print!("{}", char_val);
+//!     }
 //! }
+
 
 #[cfg(doctest)]
 extern crate doc_comment;
 
-pub use crate::utf8conv::Utf8Iter;
-pub use crate::utf8conv::Utf32Iter;
-pub use crate::utf8conv::Utf8Parser;
-pub use crate::utf8conv::Utf32Parser;
-pub use crate::utf8conv::UtfParserCommon;
-pub use crate::utf8conv::Utf8TypeEnum;
-pub use crate::utf8conv::Utf8EndEnum;
-pub use crate::utf8conv::MoreEnum;
-pub use crate::utf8conv::buf::FifoBytes;
+/// Make common symbols available in our prelude.
+///
+/// use crate::prelude::*;
+pub mod prelude {
+    pub use crate::utf8conv::REPLACE_UTF32;
+    pub use crate::utf8conv::REPLACE_PART1;
+    pub use crate::utf8conv::REPLACE_PART2;
+    pub use crate::utf8conv::REPLACE_PART3;
+    pub use crate::utf8conv::FromUtf8;
+    pub use crate::utf8conv::FromUnicode;
+    pub use crate::utf8conv::UtfParserCommon;
+    pub use crate::utf8conv::Utf8IterToCharIter;
+    pub use crate::utf8conv::Utf32IterToUtf8Iter;
+    pub use crate::utf8conv::Utf8TypeEnum;
+    pub use crate::utf8conv::Utf8EndEnum;
+    pub use crate::utf8conv::MoreEnum;
+    pub use crate::utf8conv::classify_utf32;
+    pub use crate::utf8conv::utf8_decode;
+    pub use crate::utf8conv::char_ref_iter_to_char_iter;
+    pub use crate::utf8conv::utf32_ref_iter_to_utf32_iter;
+    pub use crate::utf8conv::utf8_ref_iter_to_utf8_iter;
+    pub use crate::utf8conv::char_iter_to_utf32_iter;
+    pub use crate::utf8conv::buf::FifoBytes;
+}
 
 mod utf8conv;

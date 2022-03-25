@@ -147,6 +147,20 @@ impl FifoBytes {
         }
     }
 
+    /// Returns the byte at the 'index' position without removing
+    /// it from the collection.  The zeroth item is the oldest
+    /// item from the collection.
+    pub fn peek_at(&self, index: usize) -> Option<u8> {
+        let curlen = self.mylen;
+        if index < (curlen as usize) {
+            let opword = self.buf >> (index << 3);
+            Option::Some(opword as u8)
+        }
+        else {
+            Option::None
+        }
+    }
+
     #[inline]
     /// Peek at the first element without removing it.
     /// 'None' is returned if there is nothing stored there.
@@ -158,6 +172,8 @@ impl FifoBytes {
             Option::Some(self.buf as u8)
         }
     }
+
+
 }
 
 /// Implementation of Default trait
@@ -195,13 +211,21 @@ mod tests {
         b1.push_back(11u8);
         assert_eq!(b1.front(), Option::Some(11u8));
         b1.push_back(12u8);
+        assert_eq!(b1.peek_at(1), Option::Some(12u8));
         b1.push_back(13u8);
+        assert_eq!(b1.peek_at(2), Option::Some(13u8));
         b1.push_back(14u8);
+        assert_eq!(b1.peek_at(3), Option::Some(14u8));
         b1.push_back(15u8);
+        assert_eq!(b1.peek_at(4), Option::Some(15u8));
         b1.push_back(16u8);
+        assert_eq!(b1.peek_at(5), Option::Some(16u8));
         b1.push_back(17u8);
+        assert_eq!(b1.peek_at(6), Option::Some(17u8));
         b1.push_back(18u8);
+        assert_eq!(b1.peek_at(7), Option::Some(18u8));
         b1.push_back(19u8);
+        assert_eq!(b1.peek_at(8), Option::None);
         assert_eq!(b1.pop_front(), Option::Some(11u8));
         assert_eq!(b1.pop_front(), Option::Some(12u8));
         assert_eq!(b1.pop_front(), Option::Some(13u8));

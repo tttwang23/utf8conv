@@ -1,5 +1,9 @@
-// Copyright 2022 Thomas Wang and utf8conv contributors
-
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
 
 // This is the representation of the replacement character in UTF8 encoding.
 pub const REPLACE_UTF32:u32 = 0xFFFD;
@@ -7,17 +11,17 @@ pub const REPLACE_PART1:u8 = 0xEFu8;
 pub const REPLACE_PART2:u8 = 0xBFu8;
 pub const REPLACE_PART3:u8 = 0xBDu8;
 
-pub const TYPE2_PREFIX:u32 = 0b1100_0000u32;
-pub const TYPE3_PREFIX:u32 = 0b1110_0000u32;
-pub const TYPE4_PREFIX:u32 = 0b1111_0000u32;
+const TYPE2_PREFIX:u32 = 0b1100_0000u32;
+const TYPE3_PREFIX:u32 = 0b1110_0000u32;
+const TYPE4_PREFIX:u32 = 0b1111_0000u32;
 
-pub const BYTE2_PREFIX:u32 = 0b1000_0000u32;
+const BYTE2_PREFIX:u32 = 0b1000_0000u32;
 
 // (v & SIX_ONES) << 6 is the same as
 // (v << 6) & SIX_ONES_SHIFTED
 // This breaks up the pattern of using shift units in the same cycle.
-pub const SIX_ONES_SHIFTED:u32 = 0b111111000000u32; // 6 bits shifted 6 digits
-pub const SIX_ONES:u32 = 0b111111u32;
+const SIX_ONES_SHIFTED:u32 = 0b111111000000u32; // 6 bits shifted 6 digits
+const SIX_ONES:u32 = 0b111111u32;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(nightly, warn(rustdoc::missing_doc_code_examples))]
@@ -80,6 +84,8 @@ pub fn classify_utf32(code: u32) -> Utf8TypeEnum {
     }
     else if code < 0x10000u32 {
         if code == REPLACE_UTF32 {
+            // Treat it the same whether it is a fresh invalid codepoint
+            // or an old one from the past.
             Utf8TypeEnum::Type0((REPLACE_PART1, REPLACE_PART2, REPLACE_PART3))
         }
         else {
@@ -119,6 +125,9 @@ any number from one to the number of bytes in the number of bogus bytes
 (inclusive) is OK. In other words, the precise number is
 implementation-defined as far as Unicode is concerned.
 
+> However, for the best compatibility with existing software, implementing
+> the conversion with a finite state machine was the typical approach.
+
 Code Points         First Byte   Second Byte  Third Byte  Fourth Byte
 U+0000..U+007F      00..7F
 >                   action 0
@@ -157,22 +166,23 @@ U+100000..U+10FFFF  F4           80..8F       80..bf      80..bf
 > action 15: out = (arg << 6)+(v2 & 0x3F)
 > action 16: out = (arg << 6)+(v2 & 0x3F)
 > action 17: out = (arg << 6)+(v3 & 0x3F)
+> action 20: out = (arg << 6)+(v3 & 0x3F)
 > action 21: out = (arg << 6)+(v3 & 0x3F)
 > action 24: out = (arg << 6)+(v4 & 0x3F)
 >
 >
-> If buffer is empty then it could be EOF or need to signal for more data.
+> If buffer is empty then it could be 'end of data' or need to signal
+> for more data.
 >
 > We need to ensure the required number of bytes are available when
 > the first byte is checked.  Otherwise it is TypeUnknown. (partial data)
+>
 > Different tituation when at the last buffer - we go in to process the
 > remaining bytes even when we could run out mid-stream.
 > This avoids a quote escaping attack, such as quote - F0 - quote - newline
 
 */
 
-use core::iter::Empty;
-use core::iter::empty;
 use core::iter::Iterator;
 
 use crate::utf8conv::buf::FifoBytes;
@@ -238,7 +248,7 @@ fn byte2_action11(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
             // println!("in action 10 with v2={:#02x}", v2);
             if (v2 >= 0x80) && (v2 <= 0xbf) {
                 mybuf.pop_front(); // advance
-                byte3_action17(mybuf, (arg << 6)+(v2 & 0x3F))
+                byte3_action20(mybuf, (arg << 6)+(v2 & 0x3F))
             }
             else {
                 // println!("not within 0x80 and 0xbf");
@@ -606,20 +616,6 @@ pub fn utf8_decode(mybuf: & mut FifoBytes, last_buffer: bool) -> Utf8EndEnum {
     }
 }
 
-/// a empty byte iterator
-pub fn empty_byte_iter() -> Empty<u8> {
-    empty::<u8>()
-}
-
-/// an empty UTF32 iterator
-pub fn empty_utf32_iter() -> Empty<u32> {
-    empty::<u32>()
-}
-
-/// an empty char iterator
-pub fn empty_char_iter() -> Empty<char> {
-    empty::<char>()
-}
 
 /// Most iterators on arrays allocated on the stack returns a reference
 /// in order to save memory.  For our converter use-case this is a
@@ -627,28 +623,31 @@ pub fn empty_char_iter() -> Empty<char> {
 /// is best delivered as a value, not as a reference.
 /// This could cause two iterators fail to connect from one output to
 /// the next input.
-/// Proposed types of converters:
-/// ref of char -> u32
-/// ref of u32 -> u32
-/// ref to byte -> byte
-/// char -> u32
-/// u32 -> byte
-/// byte -> char
 ///
-/// char reference to UTF32 iterator struct
-pub struct CharRefToUtf32Struct<'b> {
+/// Proposed types of converters:
+/// utf8 ref -> char (direct route)
+/// char ref -> utf8 (another direct route)
+/// ref of char -> char
+/// utf32 ref -> utf32
+/// utf8 ref -> utf8
+/// char -> utf32
+/// utf32 -> utf8
+/// utf8 -> char
+///
+/// char reference to char iterator struct
+pub struct CharRefToCharStruct<'b> {
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = &'b char>,
 }
 
 // an adapter iterator to convert a char ref iterator to char iterator
-impl<'b> Iterator for CharRefToUtf32Struct<'b> {
-    type Item=u32;
+impl<'b> Iterator for CharRefToCharStruct<'b> {
+    type Item=char;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         match self.my_borrow_mut_iter.next() {
             Option::None => { Option::None }
-            Option::Some(v) => { Option::Some(* v as u32) }
+            Option::Some(v) => { Option::Some(* v) }
         }
     }
 
@@ -657,16 +656,16 @@ impl<'b> Iterator for CharRefToUtf32Struct<'b> {
     }
 }
 
-/// Function char_ref_iter_to_utf32_iter() takes a mutable reference to
-/// a char reference iterator, and return a UTF32 iterator in its place.
+/// Function char_ref_iter_to_char_iter() takes a mutable reference to
+/// a char ref iterator, and return a char iterator in its place.
 ///
 /// parameter
-/// input: a mutable reference to a UTF32 reference iterator
+/// input: a mutable reference to a char ref iterator
 #[inline]
-pub fn char_ref_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
--> CharRefToUtf32Struct<'a>
+pub fn char_ref_iter_to_char_iter<'a, I: 'a + Iterator>(input: &'a mut I)
+-> CharRefToCharStruct<'a>
 where I: Iterator<Item = &'a char>, {
-    CharRefToUtf32Struct {
+    CharRefToCharStruct {
         my_borrow_mut_iter: input,
     }
 }
@@ -694,10 +693,10 @@ impl<'b> Iterator for Utf32RefToUtf32Struct<'b> {
 }
 
 /// Function utf32_ref_iter_to_utf32_iter() takes a mutable reference to
-/// a UTF32 reference iterator, and return a UTF32 iterator in its place.
+/// a UTF32 ref iterator, and return a UTF32 iterator in its place.
 ///
 /// parameter
-/// input: a mutable reference to a UTF32 reference iterator
+/// input: a mutable reference to a UTF32 ref iterator
 #[inline]
 pub fn utf32_ref_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> Utf32RefToUtf32Struct<'a>
@@ -707,13 +706,13 @@ where I: Iterator<Item = &'a u32>, {
     }
 }
 
-/// byte reference to byte iterator struct
-pub struct ByteRefToByteStruct<'b> {
+/// UTF8 reference to UTF8 iterator struct
+pub struct Utf8RefToUtf8Struct<'b> {
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = &'b u8>,
 }
 
-/// an adapter iterator to convert a byte ref iterator to byte iterator
-impl<'b> Iterator for ByteRefToByteStruct<'b> {
+/// an adapter iterator to convert a UTF8 ref iterator to UTF8 iterator
+impl<'b> Iterator for Utf8RefToUtf8Struct<'b> {
     type Item=u8;
 
     #[inline]
@@ -729,63 +728,114 @@ impl<'b> Iterator for ByteRefToByteStruct<'b> {
     }
 }
 
-/// Function byte_ref_iter_to_byte_iter() takes a mutable reference to
-/// a byte reference iterator, and return a byte iterator in its place.
+/// Function utf8_ref_iter_to_utf8_iter() takes a mutable reference to
+/// a UTF8 ref iterator, and return a UTF8 iterator in its place.
 ///
 /// parameter
-/// input: a mutable reference to a byte reference iterator
+/// input: a mutable reference to a UTF8 ref iterator
 #[inline]
-pub fn byte_ref_iter_to_byte_iter<'a, I: 'a + Iterator>(input: &'a mut I)
--> ByteRefToByteStruct<'a>
+pub fn utf8_ref_iter_to_utf8_iter<'a, I: 'a + Iterator>(input: &'a mut I)
+-> Utf8RefToUtf8Struct<'a>
 where I: Iterator<Item = &'a u8>, {
-    ByteRefToByteStruct {
+    Utf8RefToUtf8Struct {
         my_borrow_mut_iter: input,
     }
 }
 
-// Struct of Utf8Parser
-pub struct Utf8Parser {
-    my_buf: FifoBytes,
-    my_last_buffer: bool,
-    my_invalid_sequence: bool,
+/// char to UTF32 iterator struct
+pub struct CharToUtf32Struct<'b> {
+    my_borrow_mut_iter: &'b mut dyn Iterator<Item = char>,
 }
 
-/// Struct of Utf32Parser
-pub struct Utf32Parser {
-    my_buf: FifoBytes,
-    my_last_buffer: bool,
-    my_invalid_sequence: bool,
-}
+// an adapter iterator to convert a char iterator to UTF32 iterator
+impl<'b> Iterator for CharToUtf32Struct<'b> {
+    type Item=u32;
 
-/// Struct of Utf8Iter
-pub struct Utf8Iter<'b> {
-    my_buf: FifoBytes,
-    my_borrow_mut_iter: &'b mut dyn Iterator<Item = u8>,
-    my_last_buffer: bool,
-    my_invalid_sequence: bool,
-}
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.my_borrow_mut_iter.next() {
+            Option::None => { Option::None }
+            Option::Some(v) => { Option::Some(v as u32) }
+        }
+    }
 
-/// Struct of Utf32Iter
-pub struct Utf32Iter<'b> {
-    my_buf: FifoBytes,
-    my_borrow_mut_iter: &'b mut dyn Iterator<Item = u32>,
-    my_last_buffer: bool,
-    my_invalid_sequence: bool,
-}
-
-
-
-
-/// Map a char parsing result to a UTF32 parsing result.
-pub fn char_to_u32_result_mapper(input: Result<(& [u8], char), MoreEnum>)
--> Result<(& [u8], u32), MoreEnum> {
-    match input {
-        Result::Err(e) => { Result::Err(e) }
-        Result::Ok((new_spot, ch)) => { Ok((new_spot, ch as u32)) }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.my_borrow_mut_iter.size_hint()
     }
 }
 
-/// Common operations for both parsers
+/// Function char_iter_to_utf32_iter() takes a mutable reference to
+/// a char iterator, and return a UTF32 iterator in its place.
+///
+/// parameter
+/// input: a mutable reference to a char iterator
+#[inline]
+pub fn char_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
+-> CharToUtf32Struct<'a>
+where I: Iterator<Item = char>, {
+    CharToUtf32Struct {
+        my_borrow_mut_iter: input,
+    }
+}
+
+
+// Struct of FromUtf8
+#[derive(Debug, Clone, Copy)]
+pub struct FromUtf8 {
+    my_buf: FifoBytes,
+    my_last_buffer: bool,
+    my_invalid_sequence: bool,
+}
+
+/// Struct of FromUnicode
+#[derive(Debug, Clone, Copy)]
+pub struct FromUnicode {
+    my_buf: FifoBytes,
+    my_last_buffer: bool,
+    my_invalid_sequence: bool,
+}
+
+/// Struct of Utf8IterToCharIter
+pub struct Utf8IterToCharIter<'p> {
+    my_borrow_mut_iter: &'p mut dyn Iterator<Item = u8>,
+    // Rust language moves an iterator when it is used in a loop;
+    // Info saved in the iterator would become inaccessible.
+    // We have info in a different object to avoid this issue.
+    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
+    my_info: &'p mut FromUtf8,
+}
+
+/// Struct of Utf32IterToUtf8Iter
+pub struct Utf32IterToUtf8Iter<'q> {
+    my_borrow_mut_iter: &'q mut dyn Iterator<Item = u32>,
+    // Rust language moves an iterator when it is used in a loop;
+    // Info saved in the iterator would become inaccessible.
+    // We have info in a different object to avoid this issue.
+    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
+    my_info: &'q mut FromUnicode,
+}
+
+/// Struct of Utf8RefIterToCharIter
+pub struct Utf8RefIterToCharIter<'r> {
+    my_borrow_mut_iter: &'r mut dyn Iterator<Item = &'r u8>,
+    // Rust language moves an iterator when it is used in a loop;
+    // Info saved in the iterator would become inaccessible.
+    // We have info in a different object to avoid this issue.
+    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
+    my_info: &'r mut FromUtf8,
+}
+
+/// Struct of CharRefIterToUtf8Iter
+pub struct CharRefIterToUtf8Iter<'s> {
+    my_borrow_mut_iter: &'s mut dyn Iterator<Item = &'s char>,
+    // Rust language moves an iterator when it is used in a loop;
+    // Info saved in the iterator would become inaccessible.
+    // We have info in a different object to avoid this issue.
+    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
+    my_info: &'s mut FromUnicode,
+}
+
+/// Common operations for UTF conversion parsers
 pub trait UtfParserCommon {
 
     fn reset_parser(&mut self);
@@ -799,8 +849,8 @@ pub trait UtfParserCommon {
     fn reset_invalid_sequence(& mut self);
 }
 
-/// Implementations of common operations for Utf8Parser
-impl<'b> UtfParserCommon for Utf8Parser {
+/// Implementations of common operations for FromUtf8
+impl<'b> UtfParserCommon for FromUtf8 {
 
     #[inline]
     /// If parameter b is true, then any input buffer to be presented will
@@ -841,8 +891,8 @@ impl<'b> UtfParserCommon for Utf8Parser {
 
 }
 
-/// Implementations of common operations for Utf32Parser
-impl<'b> UtfParserCommon for Utf32Parser {
+/// Implementations of common operations for FromUnicode
+impl<'b> UtfParserCommon for FromUnicode {
 
     #[inline]
     /// If parameter b is true, then any input buffer to be presented will
@@ -883,96 +933,21 @@ impl<'b> UtfParserCommon for Utf32Parser {
 
 }
 
-/// Implementations of common operations for Utf8Iter
-impl<'b> UtfParserCommon for Utf8Iter<'b> {
-
-    #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
-    /// be the last buffer.
-    fn set_is_last_buffer(&mut self, b: bool) {
-        self.my_last_buffer = b;
+/// Map a char parsing result to a UTF32 parsing result.
+pub fn parse_mapper_char_to_utf32(input: Result<(& [u8], char), MoreEnum>)
+-> Result<(& [u8], u32), MoreEnum> {
+    match input {
+        Result::Err(e) => { Result::Err(e) }
+        Result::Ok((new_spot, ch)) => { Ok((new_spot, ch as u32)) }
     }
-
-    #[inline]
-    /// Returns the last input buffer flag.
-    fn is_last_buffer(&self) -> bool {
-        self.my_last_buffer
-    }
-
-    #[inline]
-    /// This function returns true if invalid UTF8 decodes occurred in this
-    /// parsing stream.
-    fn has_invalid_sequence(&self) -> bool {
-        self.my_invalid_sequence
-    }
-
-    #[inline]
-    // This function resets the invalid sequence state.
-    fn reset_invalid_sequence(&mut self) {
-        self.my_invalid_sequence = false;
-    }
-
-    #[inline]
-    /// Reset all parser states to the initial value.
-    /// Last buffer indication is set to true.
-    /// Invalid sequence indication is cleared.
-    fn reset_parser(&mut self) {
-        // Drain our buffer.
-        self.my_buf.clear();
-        self.set_is_last_buffer(true);
-        self.reset_invalid_sequence();
-    }
-
 }
 
-/// Implementations of common operations for Utf32Iter
-impl<'b> UtfParserCommon for Utf32Iter<'b> {
+/// Implementation of FromUtf8
+impl FromUtf8 {
 
-    #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
-    /// be the last buffer.
-    fn set_is_last_buffer(&mut self, b: bool) {
-        self.my_last_buffer = b;
-    }
-
-    #[inline]
-    /// Returns the last input buffer flag.
-    fn is_last_buffer(&self) -> bool {
-        self.my_last_buffer
-    }
-
-    #[inline]
-    /// This function returns true if invalid UTF8 decodes occurred in this
-    /// parsing stream.
-    fn has_invalid_sequence(&self) -> bool {
-        self.my_invalid_sequence
-    }
-
-    #[inline]
-    // This function resets the invalid sequence state.
-    fn reset_invalid_sequence(&mut self) {
-        self.my_invalid_sequence = false;
-    }
-
-    #[inline]
-    /// Reset all parser states to the initial value.
-    /// Last buffer indication is set to true.
-    /// Invalid sequence indication is cleared.
-    fn reset_parser(&mut self) {
-        // Drain our buffer.
-        self.my_buf.clear();
-        self.set_is_last_buffer(true);
-        self.reset_invalid_sequence();
-    }
-
-}
-
-/// Implementation of Utf8Parser
-impl<'b> Utf8Parser {
-
-    /// Make a new Utf8Parser
-    pub fn new() -> Utf8Parser {
-        Utf8Parser {
+    /// Make a new FromUtf8
+    pub fn new() -> FromUtf8 {
+        FromUtf8 {
             my_buf : FifoBytes::new(),
             my_last_buffer : true,
             my_invalid_sequence : false,
@@ -986,8 +961,8 @@ impl<'b> Utf8Parser {
     /// Invalid UTF8 decodes are indicated by Unicode replacement characters.
     /// has_invalid_decodes() would return true after this event.
     /// Encountering a replacement character is considered the same as having
-    /// an invalid decode policy wise.
-    pub fn parse_utf8_to_char(&mut self, input: &'b [u8])
+    /// an invalid decode.
+    pub fn utf8_to_char<'b>(&mut self, input: &'b [u8])
     -> Result<(&'b [u8], char), MoreEnum> {
         let mut my_cursor: &[u8] = input;
         // Fill buffer phase.
@@ -1046,22 +1021,42 @@ impl<'b> Utf8Parser {
     /// Invalid UTF8 decodes are indicated by Unicode replacement characters.
     /// has_invalid_decodes() would return true after this event.
     /// Encountering a replacement character is considered the same as having
-    /// an invalid decode policy wise.
-    pub fn parse_utf8_to_utf32(&mut self, input: &'b [u8])
-    -> Result<(&'b [u8], u32), MoreEnum> {
-        let char_parse_result = self.parse_utf8_to_char(input);
-        char_to_u32_result_mapper(char_parse_result)
+    /// an invalid decode.
+    pub fn utf8_to_utf32<'c>(&mut self, input: &'c [u8])
+    -> Result<(&'c [u8], u32), MoreEnum> {
+        let char_parse_result = self.utf8_to_char(input);
+        parse_mapper_char_to_utf32(char_parse_result)
+    }
+
+    /// Convert from UTF8 to char with a mutable reference
+    /// to the source UTF8 iterator.
+    pub fn utf8_to_char_with_iter<'d>(&'d mut self, iter: &'d mut dyn Iterator<Item = u8>)
+    -> Utf8IterToCharIter {
+        Utf8IterToCharIter {
+            my_info : self,
+            my_borrow_mut_iter: iter,
+        }
+    }
+
+    /// Convert from UTF8 ref to char with a mutable reference
+    /// to the source UTF8 iterator.
+    pub fn utf8_ref_to_char_with_iter<'d>(&'d mut self, iter: &'d mut dyn Iterator<Item = &'d u8>)
+    -> Utf8RefIterToCharIter {
+        Utf8RefIterToCharIter {
+            my_info : self,
+            my_borrow_mut_iter: iter,
+        }
     }
 
 }
 
 
-/// Implementation of Utf32Parser
-impl<'b> Utf32Parser {
+/// Implementation of FromUnicode
+impl FromUnicode {
 
-    /// Make a new Utf32Parser
-    pub fn new() -> Utf32Parser {
-        Utf32Parser {
+    /// Make a new FromUnicode
+    pub fn new() -> FromUnicode {
+        FromUnicode {
             my_buf : FifoBytes::new(),
             my_last_buffer : true,
             my_invalid_sequence : false,
@@ -1076,7 +1071,7 @@ impl<'b> Utf32Parser {
     /// has_invalid_decodes() would return true after this event.
     /// Encountering a replacement character is considered the same as having
     /// an invalid decode.
-    pub fn parse_char_to_ut8(&mut self, input: &'b [char])
+    pub fn char_to_utf8<'b>(&mut self, input: &'b [char])
     -> Result<(&'b [char], u8), MoreEnum> {
         // Check if we can pull an u8 from our ring buffer
         match self.my_buf.pop_front() {
@@ -1140,8 +1135,8 @@ impl<'b> Utf32Parser {
     /// has_invalid_decodes() would return true after this event.
     /// Encountering a replacement character is considered the same as having
     /// an invalid decode.
-    pub fn parse_utf32_to_ut8(&mut self, input: &'b [u32])
-    -> Result<(&'b [u32], u8), MoreEnum> {
+    pub fn utf32_to_utf8<'c>(&mut self, input: &'c [u32])
+    -> Result<(&'c [u32], u8), MoreEnum> {
         // Check if we can pull an u8 from our ring buffer
         match self.my_buf.pop_front() {
             Some(v1) => {
@@ -1196,37 +1191,30 @@ impl<'b> Utf32Parser {
         }
     }
 
-}
-
-/// Implementation for Utf8Iter
-impl<'b> Utf8Iter<'b> {
-
-    /// Make a default Utf8Builder
-    pub fn new_with_iter(iter: &'b mut dyn Iterator<Item = u8>)
-    -> Utf8Iter {
-        Utf8Iter {
-            my_buf : FifoBytes::new(),
+    /// Convert from UTF32 iter to UTF8 iter with a mutable reference
+    /// to the source UTF32 iterator.
+    pub fn utf32_to_utf8_with_iter<'d>(&'d mut self, iter: &'d mut dyn Iterator<Item = u32>)
+    -> Utf32IterToUtf8Iter {
+        Utf32IterToUtf8Iter {
             my_borrow_mut_iter: iter,
-            my_last_buffer : true,
-            my_invalid_sequence : false,
+            my_info: self,
         }
     }
 
-    // Make the next Utf8Iter based on the current one.
-    // The current one is invalidated.
-    pub fn next_iter(self, iter: &'b mut dyn Iterator<Item = u8>)
-    -> Utf8Iter {
-        Utf8Iter {
-            my_buf : self.my_buf,  // copy it
+    /// Convert from char ref iter to UTF8 iter with a mutable reference
+    /// to the source char ref iterator.
+    pub fn char_ref_to_utf8_with_iter<'d>(&'d mut self, iter: &'d mut dyn Iterator<Item = &'d char>)
+    -> CharRefIterToUtf8Iter {
+        CharRefIterToUtf8Iter {
             my_borrow_mut_iter: iter,
-            my_last_buffer : self.my_last_buffer,
-            my_invalid_sequence : self.my_invalid_sequence,
+            my_info: self,
         }
     }
 
 }
 
-impl<'b> Iterator for Utf8Iter<'b> {
+/// Iterator for Utf8IterToCharIter
+impl<'g> Iterator for Utf8IterToCharIter<'g> {
     type Item = char;
 
     /// A parser takes in an iterator of UTF8 byte stream, and returns
@@ -1240,7 +1228,7 @@ impl<'b> Iterator for Utf8Iter<'b> {
     fn next(&mut self) -> Option<Self::Item> {
         // Fill buffer phase.
         loop {
-            if self.my_buf.is_full() {
+            if self.my_info.my_buf.is_full() {
                 break;
             }
             match self.my_borrow_mut_iter.next() {
@@ -1249,20 +1237,20 @@ impl<'b> Iterator for Utf8Iter<'b> {
                 }
                 Option::Some(utf8) => {
                     // Save it in our scratch pad.
-                    self.my_buf.push_back(utf8);
+                    self.my_info.my_buf.push_back(utf8);
                 }
             }
         }
-        if self.my_buf.is_empty() {
+        if self.my_info.my_buf.is_empty() {
             // This is either the end of data, or the current buffer
             // has run to the end without left-over data in the
             // scratch pad.
             Option::None
         }
         else {
-            match utf8_decode(& mut self.my_buf, self.my_last_buffer) {
+            match utf8_decode(& mut self.my_info.my_buf, self.my_info.my_last_buffer) {
                 Utf8EndEnum::BadDecode(_) => {
-                    self.my_invalid_sequence = true;
+                    self.my_info.my_invalid_sequence = true;
                     Option::Some(char::REPLACEMENT_CHARACTER)
                 }
                 Utf8EndEnum::Finish(code) => {
@@ -1273,8 +1261,8 @@ impl<'b> Iterator for Utf8Iter<'b> {
                 }
                 Utf8EndEnum::TypeUnknown => {
                     // Insufficient data to decode.
-                    if self.my_last_buffer {
-                        self.my_invalid_sequence = true;
+                    if self.my_info.my_last_buffer {
+                        self.my_info.my_invalid_sequence = true;
                         // Buffer should be empty at this point.
                         Option::Some(char::REPLACEMENT_CHARACTER)
                     }
@@ -1292,34 +1280,75 @@ impl<'b> Iterator for Utf8Iter<'b> {
     }
 }
 
-/// Implementation for Utf32Iter
-impl<'b> Utf32Iter<'b> {
+/// Iterator for Utf8RefIterToCharIter
+impl<'g> Iterator for Utf8RefIterToCharIter<'g> {
+    type Item = char;
 
-    /// Make a default Utf8Builder
-    pub fn new_with_iter(iter: &'b mut dyn Iterator<Item = u32>)
-    -> Utf32Iter {
-        Utf32Iter {
-            my_buf : FifoBytes::new(),
-            my_borrow_mut_iter: iter,
-            my_last_buffer : true,
-            my_invalid_sequence : false,
+    /// A parser takes in an iterator of UTF8 byte stream, and returns
+    /// an iterator of char values.
+    ///
+    /// An invalid Unicode decode in the stream are substituted with
+    /// an Unicode replacement character.
+    ///
+    /// has_invalid_sequence() would return true after observing
+    /// invalid decodes, or observing a replacement character.
+    fn next(&mut self) -> Option<Self::Item> {
+        // Fill buffer phase.
+        loop {
+            if self.my_info.my_buf.is_full() {
+                break;
+            }
+            match self.my_borrow_mut_iter.next() {
+                Option::None => {
+                    break;
+                }
+                Option::Some(utf8) => {
+                    // Save it in our scratch pad.
+                    self.my_info.my_buf.push_back(* utf8);
+                }
+            }
+        }
+        if self.my_info.my_buf.is_empty() {
+            // This is either the end of data, or the current buffer
+            // has run to the end without left-over data in the
+            // scratch pad.
+            Option::None
+        }
+        else {
+            match utf8_decode(& mut self.my_info.my_buf, self.my_info.my_last_buffer) {
+                Utf8EndEnum::BadDecode(_) => {
+                    self.my_info.my_invalid_sequence = true;
+                    Option::Some(char::REPLACEMENT_CHARACTER)
+                }
+                Utf8EndEnum::Finish(code) => {
+                    // Unsafe is justified because utf8_decode() finite state
+                    // machine checks for all cases of invalid decodes.
+                    let ch = unsafe { char::from_u32_unchecked(code) };
+                    Option::Some(ch)
+                }
+                Utf8EndEnum::TypeUnknown => {
+                    // Insufficient data to decode.
+                    if self.my_info.my_last_buffer {
+                        self.my_info.my_invalid_sequence = true;
+                        // Buffer should be empty at this point.
+                        Option::Some(char::REPLACEMENT_CHARACTER)
+                    }
+                    else {
+                        // Ready for next buffer
+                        Option::None
+                    }
+                }
+            }
         }
     }
 
-    // Make the next Utf8Iter based on the current one.
-    pub fn next_iter(self, iter: &'b mut dyn Iterator<Item = u32>)
-    -> Utf32Iter {
-        Utf32Iter {
-            my_buf : self.my_buf,  // copy it
-            my_borrow_mut_iter: iter,
-            my_last_buffer : self.my_last_buffer,
-            my_invalid_sequence : self.my_invalid_sequence,
-        }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.my_borrow_mut_iter.size_hint()
     }
-
 }
 
-impl<'b> Iterator for Utf32Iter<'b> {
+/// Iterator for Utf32IterToUtf8Iter
+impl<'h> Iterator for Utf32IterToUtf8Iter<'h> {
     type Item = u8;
 
     /// A parser takes in an iterator of Unicode codepoints, and returns
@@ -1332,7 +1361,7 @@ impl<'b> Iterator for Utf32Iter<'b> {
     /// invalid decodes, or observing a replacement character.
     fn next(&mut self) -> Option<Self::Item> {
         // Check if we can pull an u8 from our ring buffer.
-        match self.my_buf.pop_front() {
+        match self.my_info.my_buf.pop_front() {
             Option::Some(v1) => {
                 return Option::Some(v1);
             }
@@ -1350,26 +1379,92 @@ impl<'b> Iterator for Utf32Iter<'b> {
                         Option::Some(v1)
                     }
                     Utf8TypeEnum::Type2((v1,v2)) => {
-                        self.my_buf.push_back(v2);
+                        self.my_info.my_buf.push_back(v2);
                         Option::Some(v1)
                     }
                     Utf8TypeEnum::Type3((v1,v2,v3)) => {
-                        self.my_buf.push_back(v2);
-                        self.my_buf.push_back(v3);
+                        self.my_info.my_buf.push_back(v2);
+                        self.my_info.my_buf.push_back(v3);
                         Option::Some(v1)
                     }
                     Utf8TypeEnum::Type4((v1,v2,v3,v4)) => {
-                        self.my_buf.push_back(v2);
-                        self.my_buf.push_back(v3);
-                        self.my_buf.push_back(v4);
+                        self.my_info.my_buf.push_back(v2);
+                        self.my_info.my_buf.push_back(v3);
+                        self.my_info.my_buf.push_back(v4);
                         Option::Some(v1)
                     }
                     _ => {
                         // Invalid UTF32 codepoint
                         // Emit replacement byte sequence.
-                        self.my_invalid_sequence = true;
-                        self.my_buf.push_back(REPLACE_PART2);
-                        self.my_buf.push_back(REPLACE_PART3);
+                        self.my_info.my_invalid_sequence = true;
+                        self.my_info.my_buf.push_back(REPLACE_PART2);
+                        self.my_info.my_buf.push_back(REPLACE_PART3);
+                        Option::Some(REPLACE_PART1)
+                    }
+                }
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.my_borrow_mut_iter.size_hint()
+    }
+
+}
+
+/// Iterator for CharRefIterToUtf8Iter
+impl<'h> Iterator for CharRefIterToUtf8Iter<'h> {
+    type Item = u8;
+
+    /// A parser takes in an iterator of Unicode codepoints, and returns
+    /// the output UTF8 byte value.
+    ///
+    /// An invalid Unicode codepoint in the stream are substituted with
+    /// an Unicode replacement character.
+    ///
+    /// has_invalid_sequence() would return true after observing
+    /// invalid decodes, or observing a replacement character.
+    fn next(&mut self) -> Option<Self::Item> {
+        // Check if we can pull an u8 from our ring buffer.
+        match self.my_info.my_buf.pop_front() {
+            Option::Some(v1) => {
+                return Option::Some(v1);
+            }
+            Option::None => {}
+        }
+        // Processing for input being empty case
+        match self.my_borrow_mut_iter.next() {
+            Option::None => {
+                return Option::None;
+            }
+            Option::Some(ch_ref) => {
+                let utf32 = (* ch_ref) as u32;
+                // Try to determine the type of UTFf32 encoding.
+                match classify_utf32(utf32) {
+                    Utf8TypeEnum::Type1(v1) => {
+                        Option::Some(v1)
+                    }
+                    Utf8TypeEnum::Type2((v1,v2)) => {
+                        self.my_info.my_buf.push_back(v2);
+                        Option::Some(v1)
+                    }
+                    Utf8TypeEnum::Type3((v1,v2,v3)) => {
+                        self.my_info.my_buf.push_back(v2);
+                        self.my_info.my_buf.push_back(v3);
+                        Option::Some(v1)
+                    }
+                    Utf8TypeEnum::Type4((v1,v2,v3,v4)) => {
+                        self.my_info.my_buf.push_back(v2);
+                        self.my_info.my_buf.push_back(v3);
+                        self.my_info.my_buf.push_back(v4);
+                        Option::Some(v1)
+                    }
+                    _ => {
+                        // Invalid UTF32 codepoint
+                        // Emit replacement byte sequence.
+                        self.my_info.my_invalid_sequence = true;
+                        self.my_info.my_buf.push_back(REPLACE_PART2);
+                        self.my_info.my_buf.push_back(REPLACE_PART3);
                         Option::Some(REPLACE_PART1)
                     }
                 }
@@ -1384,133 +1479,25 @@ impl<'b> Iterator for Utf32Iter<'b> {
 }
 
 
-
 #[cfg(test)]
 mod tests {
     extern crate std;
     extern crate stackfmt;
 
-    use core::slice::from_ref;
-    use core::slice::Iter;
-    use core::str;
     use super::*;
     use super::UtfParserCommon;
-    use super::Utf8Parser;
-    use super::Utf32Parser;
-    use super::Utf8Iter;
-    use super::Utf32Iter;
-
-    // use rand::Rng;
-    use rand::SeedableRng;
-    use rand::rngs::SmallRng;
-    use rand::RngCore;
-
-    fn verify_with_string(par: &mut Utf8Parser, b1:& [u8], b2:& [u8], b3:& [u8], b4:& [u8], truth: &str) {
-        let mut panic_buf = [0u8; 12000];
-        let mut ender_len:usize = 0;
-        let mut truth_iter = truth.char_indices();
-        par.set_is_last_buffer(false);
-        for stage in 0 .. 4 {
-            let mut the_slice: &[u8];
-            match stage {
-                0 => {
-                    the_slice = &b1;
-                }
-                1 => {
-                    the_slice = &b2;
-                }
-                2 => {
-                    the_slice = &b3;
-                }
-                _ => {
-                    the_slice = &b4;
-                    par.set_is_last_buffer(true);
-                }
-            }
-            loop {
-                match par.parse_utf8_to_char(the_slice) {
-                    Result::Ok((slice_pos, test_ch)) => {
-                        the_slice = slice_pos;
-                        match truth_iter.next() {
-                            Option::Some((_pos, truth_ch)) => {
-                                if test_ch != truth_ch {
-                                    let formatted: &str = stackfmt::fmt_truncate(&mut panic_buf, format_args!(
-"The truth string is different than the test vectors.\nTruth string:{}\nTest vector at index {} has code value {:#08x} vs truth {:#08x}"
-                                    ,truth, ender_len, (test_ch as u32), (truth_ch as u32)));
-                                    panic!("\n{}\n", formatted);
-                                }
-                            }
-                            Option::None => {
-                                let formatted: &str = stackfmt::fmt_truncate(&mut panic_buf, format_args!(
-"The truth string is shorter than the combined test vectors.\nTruth string:{}\nTest vector at index {} has code value {:#08x}"
-                                , truth, ender_len, (test_ch as u32)));
-                                panic!("\n{}\n",formatted);
-                            }
-                        }
-                        ender_len += 1;
-                    }
-                    Result::Err(en) => {
-                        match en {
-                            MoreEnum::More(i) => {
-                                if i == 0 {
-                                    match truth_iter.next() {
-                                        Option::Some((_pos, truth_ch)) => {
-                                            let formatted: &str = stackfmt::fmt_truncate(&mut panic_buf, format_args!(
-"The truth string is longer than the test vectors (length {}).\nTruth string:{}\nTruth at index {} has code value {:#08x}"
-                                            , ender_len, truth, ender_len+1, (truth_ch as u32)));
-                                            panic!("\n{}\n", formatted);
-                                        }
-                                        Option::None => {
-                                            // Truth and test vector ran out at the same time.  Test passed.
-                                            return;
-                                        }
-                                    }
-                                }
-                                else {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    use super::FromUtf8;
+    use super::FromUnicode;
 
 
     #[test]
-    fn simple_example() {
+    fn iterator_example() {
         let mybuffer = "abc\n".as_bytes();
         let mut utf8_ref_iter = mybuffer.iter();
-        let mut utf8_iter = byte_ref_iter_to_byte_iter(& mut utf8_ref_iter);
-        let parser = Utf8Iter::new_with_iter(& mut utf8_iter);
-        for char_val in parser {
+        let mut parser = FromUtf8::new();
+        let iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
+        for char_val in iterator {
             print!("{}", char_val);
-        }
-
-        // Convert a char iterator to a UTF32 iterator.
-        let mchar:char = char::MAX;
-        let mut mchar_iter = core::slice::from_ref(&mchar).iter();
-        for indx in char_ref_iter_to_utf32_iter( & mut mchar_iter) {
-            println!("{}", indx);
-        }
-
-        // Test empty char iterator
-        let char_iter2 = empty_char_iter();
-        for ch in char_iter2 {
-            println!("{}", ch);
-        }
-
-        // Test empty UTF32 iterator
-        let char_iter2 = empty_utf32_iter();
-        for num2 in char_iter2 {
-            println!("{}", num2);
-        }
-
-        // Test empty byte iterator
-        let byte_iter2 = empty_byte_iter();
-        for by2 in byte_iter2 {
-            println!("{}", by2);
         }
     }
 
@@ -1524,33 +1511,105 @@ mod tests {
     }
 
     // Have a char value go through a round trip of conversions.
-    fn round_trip(char_val: char) {
+    fn round_trip_parsing1(char_val: char) {
         let char_box: [char; 1] = [char_val; 1];
+        let mut utf8_box: [u8; 4] = [0; 4];
+        let mut utf8_len: usize = 0;
 
-        let mut char_iter = char_box.iter();
-        let mut code_iter = char_ref_iter_to_utf32_iter(& mut char_iter);
-        let utf32_to_utf8 = Utf32Iter::new_with_iter(& mut code_iter);
-        let mut byte_box: [u8; 8] = [0; 8];
-        let mut byte_len:usize = 0;
-        for b in utf32_to_utf8 {
-            byte_box[byte_len] = b;
-            byte_len += 1;
+        let mut char_ref = & char_box[..];
+        let mut utf32_parser = FromUnicode::new();
+        loop {
+            match utf32_parser.char_to_utf8(char_ref) {
+                Result::Ok((char_pos, b)) => {
+                    if char_val == char::REPLACEMENT_CHARACTER {
+                        assert_eq!(true, utf32_parser.has_invalid_sequence());
+                    }
+                    utf8_box[utf8_len] = b;
+                    utf8_len += 1;
+                    char_ref = char_pos;
+                }
+                Result::Err(MoreEnum::More(_)) => {
+                    break;
+                }
+            }
         }
-        let mut byte_ref_iter = (&byte_box[0 .. byte_len]).iter();
-        let mut byte_iter = byte_ref_iter_to_byte_iter(& mut byte_ref_iter);
-        let utf8_to_char = Utf8Iter::new_with_iter(& mut byte_iter);
-        for ch in utf8_to_char {
-            assert_eq!(ch, char_val);
+        let mut utf8_ref = & utf8_box[0 .. utf8_len];
+        let mut char_box2: [char; 1] = [char::MAX; 1];
+        let mut char_len: usize = 0;
+        let mut utf8_parser = FromUtf8::new();
+        loop {
+            match utf8_parser.utf8_to_char(utf8_ref) {
+                Result::Ok((utf8_pos, ch)) => {
+                    if char_val == char::REPLACEMENT_CHARACTER {
+                        assert_eq!(true, utf8_parser.has_invalid_sequence());
+                    }
+                    char_box2[char_len] = ch;
+                    char_len += 1;
+                    utf8_ref = utf8_pos;
+                }
+                Result::Err(MoreEnum::More(_)) => {
+                    break;
+                }
+            }
         }
+        assert_eq!(1, char_len);
+        assert_eq!(char_val, char_box2[0]);
+    }
+
+    // Have a char value go through a round trip of conversions.
+    fn round_trip_parsing2(code_val: u32) {
+        let utf32_box: [u32; 1] = [code_val; 1];
+        let mut utf8_box: [u8; 4] = [0; 4];
+        let mut utf8_len: usize = 0;
+
+        let mut utf32_ref = & utf32_box[..];
+        let mut utf32_parser = FromUnicode::new();
+        loop {
+            match utf32_parser.utf32_to_utf8(utf32_ref) {
+                Result::Ok((utf32_pos, b)) => {
+                    if code_val == REPLACE_UTF32 {
+                        assert_eq!(true, utf32_parser.has_invalid_sequence());
+                    }
+                    utf8_box[utf8_len] = b;
+                    utf8_len += 1;
+                    utf32_ref = utf32_pos;
+                }
+                Result::Err(MoreEnum::More(_)) => {
+                    break;
+                }
+            }
+        }
+        let mut utf8_ref = & utf8_box[0 .. utf8_len];
+        let mut utf32_box2: [u32; 1] = [0; 1];
+        let mut utf32_len: usize = 0;
+        let mut utf8_parser = FromUtf8::new();
+        loop {
+            match utf8_parser.utf8_to_utf32(utf8_ref) {
+                Result::Ok((utf8_pos, co)) => {
+                    if code_val == REPLACE_UTF32 {
+                        assert_eq!(true, utf8_parser.has_invalid_sequence());
+                    }
+                    utf32_box2[utf32_len] = co;
+                    utf32_len += 1;
+                    utf8_ref = utf8_pos;
+                }
+                Result::Err(MoreEnum::More(_)) => {
+                    break;
+                }
+            }
+        }
+        assert_eq!(1, utf32_len);
+        assert_eq!(code_val, utf32_box2[0]);
     }
 
     #[test]
-    // Test using both converters to convert back and forth.
-    pub fn test_round_trip() {
+    // Test using both parsing converters to convert back and forth.
+    pub fn test_round_trip_parsing() {
         let mut code:u32 = 0;
         loop {
             let ch = char::from_u32(code).unwrap();
-            round_trip(ch);
+            round_trip_parsing1(ch);
+            round_trip_parsing2(code);
             code += 1;
             if code == 0xD800 {
                 code = 0xE000; // skip UTF16 surrogate range
@@ -1561,271 +1620,6 @@ mod tests {
         }
     }
 
-    #[test]
-    /// Simple string conversion test
-    fn test_utf8parsing_aaa() {
-        let mut par:Utf8Parser = Utf8Parser::new();
-        println!("case 1: all empty");
-        let t1 = "";
-        verify_with_string(&mut par, "".as_bytes(), "".as_bytes(), "".as_bytes(), "".as_bytes(), &t1);
-        assert!(!par.has_invalid_sequence());
-
-        println!("case 2, different length ASCII");
-        let t1 = "abcdef\x7f\t\r\n";
-        verify_with_string(&mut par, "a".as_bytes(), "bc".as_bytes(), "def".as_bytes(), "\x7f\t\r\n".as_bytes(), &t1);
-        assert!(!par.has_invalid_sequence());
-
-        println!("case 3: multi-language");
-        let t1 = "寒い,감기,frío,студен";
-        verify_with_string(&mut par, "寒い,".as_bytes(), "감기,".as_bytes(), "frío,".as_bytes(), "студен".as_bytes(), &t1);
-        assert!(!par.has_invalid_sequence());
-
-        println!("case 4: emoji and symbols");
-        let t1 = "😀🐔🐣🇧🇷🇨🇦元∰⇲";
-        verify_with_string(&mut par, "😀".as_bytes(), "🐔🐣".as_bytes(), "🇧🇷🇨🇦".as_bytes(), "元∰⇲".as_bytes(), &t1);
-        assert!(!par.has_invalid_sequence());
-
-        println!("case 5: long text");
-        // long text
-        let t1 = "The red fox jumped over the white fence in a stormy morning with seven chasing servants";
-        verify_with_string(&mut par, "The red fox jumped over the white fence in a stormy morning with seven chasing servants".as_bytes(),
-        "".as_bytes(), "".as_bytes(), "".as_bytes(), &t1);
-        assert!(!par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 6: decode across buffer boundaries: ED/9F-bf, C2 / 80");
-        let t1 = "\u{D7FF}\u{80}";
-        verify_with_string(&mut par, & [0xEDu8], & [0x9Fu8, 0xbfu8], & [0xC2u8], & [0x80u8], &t1);
-        assert!(!par.has_invalid_sequence());
-
-        println!("case 7: long decode error followed by 2 byte decode");
-        let t1 = "\u{FFFD}\u{FFFD}\u{7FF}";
-        verify_with_string(&mut par, &[0xF0u8], "".as_bytes(), & [0x85u8], &[0xDFu8, 0xBFu8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 8: decode error in last byte, then an ASCII");
-        let t1 = "\u{FFFD}\u{7f}?";
-        verify_with_string(&mut par, & [0xF4u8], & [0x8Fu8], & [0x80u8, 0x7fu8], & [0x3fu8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 9: overlong encoding of the euro sign");
-        let t1 = "\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}";
-        verify_with_string(&mut par, & [0xF0u8], & [0x82u8], & [0x82u8], & [0xACu8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 10: invalid bytes from F5 to FF");
-        let t1 = "\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}";
-        verify_with_string(&mut par, & [245u8,246u8,247u8,248u8,249u8,250u8,251u8,252u8,253u8,254u8,255u8], & [], & [], & [], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 11: accept some non-characters");
-        let t1 = "\u{FFFE}\u{FFFF}\u{1FFFF}\u{2FFFE}\u{2FFFF}";
-        verify_with_string(&mut par, "\u{FFFE}\u{FFFF}\u{1FFFF}\u{2FFFE}\u{2FFFF}".as_bytes(), & [], & [], & [], &t1);
-        assert!(! par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 12: unicode 0, 16, 32, 48 ...");
-        let t1 = "\u{0}\u{16}\u{32}\u{48}\u{64}\u{80}\u{96}\u{112}\u{128}\u{144}\u{160}";
-        verify_with_string(&mut par, "\u{0}\u{16}\u{32}\u{48}\u{64}\u{80}\u{96}\u{112}\u{128}\u{144}\u{160}".as_bytes(), & [], & [], & [], &t1);
-        assert!(! par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 13: < D0 D0 >");
-        let t1 = "<\u{FFFD}\u{FFFD}>";
-        verify_with_string(&mut par, "<".as_bytes(), & [0xD0u8], & [0xD0u8], ">".as_bytes(), &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 14: E1 A0 C0");
-        let t1 = "\u{FFFD}\u{FFFD}\\";
-        verify_with_string(&mut par, & [0xE1u8], & [0xA0u8], & [], & [0xC0, 0x5c], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 15: over long null characters");
-        let t1 = "\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}";
-        verify_with_string(&mut par, & [0xE0u8,128u8,128u8], & [0xF0,128u8,128u8,128u8], & [0xC0u8,128u8], & [], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 16: +U10000");
-        let t1 = "\u{10000}";
-        verify_with_string(&mut par, & [0b1111_0000u8], & [0b1001_0000u8], & [0b1000_0000u8], & [0b1000_0000u8], &t1);
-        assert!(! par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 17: double quote, F0, double quote, NL");
-        let t1 = "\"\u{FFFD}\"\n";
-        verify_with_string(&mut par, & [34u8], & [0xF0u8], & [34u8], & [10u8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 18: +UD800");
-        let t1 = "\u{FFFD}\u{FFFD}\u{FFFD}\n";
-        verify_with_string(&mut par, & [0xEDu8], & [0xA0u8], & [0x80u8], & [10u8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 19: +UDFFF");
-        let t1 = "\u{FFFD}\u{FFFD}\u{FFFD}\r";
-        verify_with_string(&mut par, & [0xEDu8], & [0xbfu8], & [0xbfu8], & [13u8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 20: 0x80");
-        let t1 = "G\u{FFFD}R\r";
-        verify_with_string(&mut par, & [71u8], & [0x80u8], & [82u8], & [13u8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 21: 0xC0, 0xC1");
-        let t1 = "G\u{FFFD}\u{FFFD}\n";
-        verify_with_string(&mut par, & [71u8], & [0xC1u8], & [0xC0u8], & [10u8], &t1);
-        assert!(par.has_invalid_sequence());
-
-        par.reset_parser();
-        println!("case 22: U+110000");
-        let t1 = "\u{FFFD}\u{FFFD}\u{FFFD}\u{FFFD}\n";
-        verify_with_string(&mut par, & [0xF5u8], & [0x80u8, 0x80u8], & [0x80u8], & [10u8], &t1);
-        assert!(par.has_invalid_sequence());
-    }
-
-    // Chop up one u8 slice and distribute among 4 u8 slices.
-    fn four_random_slice<'a>(byte_slice: &'a [u8], rng: &mut SmallRng) -> (&'a [u8], &'a [u8], &'a [u8], &'a [u8])
-    {
-        let remainder_bound:usize = match byte_slice.len() / 4 {
-            0usize => { 1usize }
-            n => { n }
-        };
-        let seg_1_len:usize = (rng.next_u32() as usize) % remainder_bound;
-        let seg_2_len:usize = (rng.next_u32() as usize) % remainder_bound;
-        let seg_3_len:usize = (rng.next_u32() as usize) % remainder_bound;
-        let seg_4_len:usize = byte_slice.len() - seg_1_len - seg_2_len - seg_3_len;
-        (& byte_slice[0 .. seg_1_len],
-        & byte_slice[seg_1_len .. seg_1_len + seg_2_len],
-        & byte_slice[seg_1_len + seg_2_len .. seg_1_len + seg_2_len + seg_3_len],
-        & byte_slice[seg_1_len + seg_2_len + seg_3_len .. seg_1_len + seg_2_len + seg_3_len + seg_4_len])
-    }
-
-    fn spread_noise(byte_slice: &mut [u8], rng: &mut SmallRng) {
-        for indx in 0 .. byte_slice.len() {
-            if (rng.next_u32() % 10) == 0 {
-                rng.fill_bytes(&mut byte_slice[indx .. indx + 1]);
-            }
-        }
-    }
-
-    // Calls char.encode_utf8() to convert a char slice to append to an u8 slice.
-    // Returns the entire content of the target u8 slice.
-    // Data in char is alredy valid Unicode codepoint.
-    fn char_slice_to_u8_slice<'a>(char_slice: & [char], u8_slice: &'a mut [u8]) -> &'a mut [u8] {
-        let mut cur_u8_len:usize = 0;
-        for char_indx in 0usize .. char_slice.len() {
-            let target = char_slice[char_indx].encode_utf8(&mut u8_slice[cur_u8_len .. ]);
-            cur_u8_len += target.len();
-        }
-        &mut u8_slice[0 .. cur_u8_len]
-    }
-
-    // Copy from a source u8 slice to a target u8 slice.
-    fn copy_u8_slice_to_u8_slice(from_slice: & [u8], to_slice: & mut [u8]) {
-        // assert!(to_slice.len() >= from_slice.len());
-        let len = from_slice.len();
-        for indx in 0 .. len {
-            to_slice[indx] = from_slice[indx];
-        }
-    }
-
-    // Copy a replacement character to a target u8 slice.
-    fn copy_replacement_to_u8_slice(to_slice: & mut [u8]) {
-        // assert!(to_slice.len() >= 3);
-        to_slice[0] = REPLACE_PART1;
-        to_slice[1] = REPLACE_PART2;
-        to_slice[2] = REPLACE_PART3;
-    }
-
-    // Calls str::from_utf8() to convert with replacement from one u8 buffer to another one.
-    fn validify_u8_buffer<'a>(u8_slice: & [u8], dest_slice: &'a mut [u8]) -> &'a mut [u8] {
-        let mut cur_slice = u8_slice;
-        let mut output_len:usize = 0;
-        while cur_slice.len() > 0 {
-            match str::from_utf8(cur_slice) {
-                Ok(str_ref) => {
-                    let ref_len = str_ref.len();
-                    copy_u8_slice_to_u8_slice(&cur_slice[0 .. ref_len], & mut dest_slice[output_len ..]);
-                    cur_slice = &cur_slice[ref_len ..];
-                    output_len += ref_len;
-                }
-                Err(en) => {
-                    let valid_up_to = en.valid_up_to();
-                    copy_u8_slice_to_u8_slice(&cur_slice[0 .. valid_up_to], &mut dest_slice[output_len ..]);
-                    cur_slice = & cur_slice[valid_up_to ..];
-                    output_len += valid_up_to;
-                    match en.error_len() {
-                        Option::Some(err_len) => {
-                            copy_replacement_to_u8_slice(& mut dest_slice[output_len ..]);
-                            output_len += 3;
-                            cur_slice = & cur_slice[err_len .. ];
-                        }
-                        Option::None => {
-                            copy_replacement_to_u8_slice(& mut dest_slice[output_len ..]);
-                            output_len += 3;
-                            return & mut dest_slice[0 .. output_len]; // EOF
-                        }
-                    }
-                }
-            }
-        }
-        & mut dest_slice[0 .. output_len]
-    }
-
-    // Populate a char slice with random codepoints.
-    fn make_random_string(char_slice: &mut [char], rng: &mut SmallRng) {
-        for indx in 0usize .. char_slice.len() {
-            let val:u32 = rng.next_u32() % 0x111000u32;
-            match char::from_u32(val) {
-                Option::Some(ch) => {
-                    char_slice[indx] = ch;
-                }
-                Option::None => {
-                    assert!(!((val > 0xffffu32) && (val <= 0x10ffffu32)));
-                    char_slice[indx] = char::REPLACEMENT_CHARACTER;
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_utf8_monkey() {
-        let mut par:Utf8Parser = Utf8Parser::new();
-        let mut rng = SmallRng::seed_from_u64(0x17841d3a103c10b4u64);
-        let mut char_buf = [char::REPLACEMENT_CHARACTER; 160];
-        let mut byte_buf = [0u8; 160 * 4];
-        let mut byte_buf2 = [0u8; 160 * 12];
-        for _indx in 0 .. 40000 {
-            make_random_string(& mut char_buf, &mut rng);
-            let orig_slice: &mut [u8] = char_slice_to_u8_slice(&char_buf, & mut byte_buf);
-            spread_noise(orig_slice, & mut rng);
-            let (frag1, frag2, frag3, frag4) = four_random_slice(orig_slice, &mut rng);
-            // This is calling str:from_utf8() which is similar to
-            // String::from_utf8_lossy().
-            let mod_buf2 = validify_u8_buffer(orig_slice, & mut byte_buf2);
-            match str::from_utf8(mod_buf2) {
-                Ok(mystr) => {
-                    // Usually mystr would be longer because the fragments has
-                    // errors that will lengthen to replacement characters.
-                    verify_with_string(&mut par, frag1, frag2, frag3, frag4, mystr);
-                }
-                Err(_) => {
-                    panic!("Unexpected from_utf8() failure");
-                }
-            }
-        }
-    }
 
 }
 
