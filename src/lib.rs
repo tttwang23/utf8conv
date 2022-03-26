@@ -37,7 +37,7 @@ extern crate doc_comment;
 
 /// Make common symbols available in our prelude.
 ///
-/// use crate::prelude::*;
+/// use utf8conv::prelude::*;
 pub mod prelude {
     pub use crate::utf8conv::REPLACE_UTF32;
     pub use crate::utf8conv::REPLACE_PART1;
@@ -57,7 +57,7 @@ pub mod prelude {
     pub use crate::utf8conv::utf32_ref_iter_to_utf32_iter;
     pub use crate::utf8conv::utf8_ref_iter_to_utf8_iter;
     pub use crate::utf8conv::char_iter_to_utf32_iter;
-    pub use crate::utf8conv::buf::FifoBytes;
+    pub use crate::utf8conv::buf::EightBytes;
 }
 
 mod utf8conv;

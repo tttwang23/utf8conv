@@ -1,3 +1,4 @@
+// Copyright 2022 Thomas Wang and utf8conv contributors
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
 // https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
@@ -185,7 +186,7 @@ U+100000..U+10FFFF  F4           80..8F       80..bf      80..bf
 
 use core::iter::Iterator;
 
-use crate::utf8conv::buf::FifoBytes;
+use crate::utf8conv::buf::EightBytes;
 
 
 // Action 9 and 10 are different; action 9 can be an end state, while
@@ -193,7 +194,7 @@ use crate::utf8conv::buf::FifoBytes;
 
 #[inline]
 /// Finite state machine action 9; expect 80 to bf
-fn byte2_action9(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action9(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -218,7 +219,7 @@ fn byte2_action9(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 // while action 12 is for a 4 byte sequence.
 
 /// Finite state machine action 10; expect 80 to bf
-fn byte2_action10(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action10(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -241,7 +242,7 @@ fn byte2_action10(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 
 /// Finite state machine action 11; expect 80 to bf
 /// Codepoint E000 to FFFF
-fn byte2_action11(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action11(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -263,7 +264,7 @@ fn byte2_action11(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 }
 
 /// Finite state machine action 12; expect 80 to bf
-fn byte2_action12(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action12(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -285,7 +286,7 @@ fn byte2_action12(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 }
 
 /// Finite state machine action 13; expect 80 to 8F
-fn byte2_action13(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action13(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -308,7 +309,7 @@ fn byte2_action13(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 
 #[inline]
 /// Finite state machine action 14; expect A0 to bf
-fn byte2_action14(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action14(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -330,7 +331,7 @@ fn byte2_action14(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 }
 
 /// Finite state machine action 15; expect 80 to 9F
-fn byte2_action15(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action15(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -352,7 +353,7 @@ fn byte2_action15(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 }
 
 /// Finite state machine action 16; expect 90 to bf
-fn byte2_action16(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte2_action16(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v2 = v as u32;
@@ -375,7 +376,7 @@ fn byte2_action16(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 
 #[inline]
 /// Finite state machine action 17; expect 80 to bf
-fn byte3_action17(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte3_action17(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v3 = v as u32;
@@ -399,7 +400,7 @@ fn byte3_action17(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 #[inline]
 /// Finite state machine action 20 expect 80 to bf
 /// Codepoint E000 to FFFF
-fn byte3_action20(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte3_action20(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v3 = v as u32;
@@ -437,7 +438,7 @@ fn byte3_action20(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 
 #[inline]
 /// Finite state machine action 21; expect 80 to bf
-fn byte3_action21(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte3_action21(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v3 = v as u32;
@@ -460,7 +461,7 @@ fn byte3_action21(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 
 #[inline]
 /// Finite state machine action 24; expect 80 to bf
-fn byte4_action24(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
+fn byte4_action24(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v4 = v as u32;
@@ -495,7 +496,7 @@ fn byte4_action24(mybuf: & mut FifoBytes, arg: u32) -> Utf8EndEnum {
 /// When there are no more data than what is available in 'mybuf', and with
 /// 'last_buffer' being true, then partial decodes results in
 /// Utf8EndEnum:BadDecode(n) where n is length of error from 1 to 3 bytes.
-pub fn utf8_decode(mybuf: & mut FifoBytes, last_buffer: bool) -> Utf8EndEnum {
+pub fn utf8_decode(mybuf: & mut EightBytes, last_buffer: bool) -> Utf8EndEnum {
     match mybuf.front() {
         Option::Some(v) => {
             let v1 = v as u32;
@@ -621,7 +622,7 @@ pub fn utf8_decode(mybuf: & mut FifoBytes, last_buffer: bool) -> Utf8EndEnum {
 /// in order to save memory.  For our converter use-case this is a
 /// problem because our conversion result is a temporary value that
 /// is best delivered as a value, not as a reference.
-/// This could cause two iterators fail to connect from one output to
+/// This could cause two iterators failing to connect from one output to
 /// the next input.
 ///
 /// Proposed types of converters:
@@ -782,7 +783,7 @@ where I: Iterator<Item = char>, {
 // Struct of FromUtf8
 #[derive(Debug, Clone, Copy)]
 pub struct FromUtf8 {
-    my_buf: FifoBytes,
+    my_buf: EightBytes,
     my_last_buffer: bool,
     my_invalid_sequence: bool,
 }
@@ -790,7 +791,7 @@ pub struct FromUtf8 {
 /// Struct of FromUnicode
 #[derive(Debug, Clone, Copy)]
 pub struct FromUnicode {
-    my_buf: FifoBytes,
+    my_buf: EightBytes,
     my_last_buffer: bool,
     my_invalid_sequence: bool,
 }
@@ -821,7 +822,7 @@ pub struct Utf8RefIterToCharIter<'r> {
     // Rust language moves an iterator when it is used in a loop;
     // Info saved in the iterator would become inaccessible.
     // We have info in a different object to avoid this issue.
-    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
+    // However, inside a loop the FromUtf8 struct is uniquely borrowed.
     my_info: &'r mut FromUtf8,
 }
 
@@ -831,7 +832,7 @@ pub struct CharRefIterToUtf8Iter<'s> {
     // Rust language moves an iterator when it is used in a loop;
     // Info saved in the iterator would become inaccessible.
     // We have info in a different object to avoid this issue.
-    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
+    // However, inside a loop the FromUnicode struct is uniquely borrowed.
     my_info: &'s mut FromUnicode,
 }
 
@@ -948,7 +949,7 @@ impl FromUtf8 {
     /// Make a new FromUtf8
     pub fn new() -> FromUtf8 {
         FromUtf8 {
-            my_buf : FifoBytes::new(),
+            my_buf : EightBytes::new(),
             my_last_buffer : true,
             my_invalid_sequence : false,
         }
@@ -1057,7 +1058,7 @@ impl FromUnicode {
     /// Make a new FromUnicode
     pub fn new() -> FromUnicode {
         FromUnicode {
-            my_buf : FifoBytes::new(),
+            my_buf : EightBytes::new(),
             my_last_buffer : true,
             my_invalid_sequence : false,
         }
@@ -1485,8 +1486,6 @@ mod tests {
     extern crate stackfmt;
 
     use crate::prelude::*;
-
-
 
     #[test]
     /// Single buffer iterator based UTF8 parsing

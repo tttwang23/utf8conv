@@ -1,4 +1,10 @@
 // Copyright 2022 Thomas Wang and utf8conv contributors
+//
+// Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
+// option. This file may not be copied, modified, or distributed
+// except according to those terms.
 
 // Module is crate::utf8conv::buf
 
@@ -8,28 +14,28 @@ use core::cmp::Ordering;
 use core::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy, Eq)]
-/// This is an implementation of a simple FIFO buffer containing byte values
-/// with storage size of 8.  Stored values can be retrieved
-/// "first-in, first-out" order.  Single threaded usage is intended.
-pub struct FifoBytes {
+/// This is an implementation of a double-ended buffer containing
+/// byte values with storage size of 8.
+/// Single threaded usage is intended.
+pub struct EightBytes {
     buf: u64,
     mylen: u32,
 }
 
 /// PartialEq implementation
-impl PartialEq for FifoBytes {
+impl PartialEq for EightBytes {
     fn eq(&self, other: &Self) -> bool {
         (self.mylen == other.mylen) && (self.buf == other.buf)
     }
 }
 
 /// Ord implementation
-/// Longer length FifoBytes being greater, followed by
+/// Longer length EightBytes being greater, followed by
 /// comparison of most recently pushed bytes
 ///
-/// This object is mutable; do not put FifoBytes in a collection
+/// This object is mutable; do not put EightBytes in a collection
 /// if its state will change during its residence.
-impl Ord for FifoBytes {
+impl Ord for EightBytes {
     fn cmp(&self, other: &Self) -> Ordering {
         let len1 = self.mylen;
         let len2 = other.mylen;
@@ -56,7 +62,7 @@ impl Ord for FifoBytes {
 }
 
 /// PartialOrd implementation
-impl PartialOrd for FifoBytes {
+impl PartialOrd for EightBytes {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -65,28 +71,28 @@ impl PartialOrd for FifoBytes {
 
 /// Hash implementation
 ///
-/// This object is mutable; do not put FifoBytes in a collection
+/// This object is mutable; do not put EightBytes in a collection
 /// if its state will change during its residence.
-impl Hash for FifoBytes {
+impl Hash for EightBytes {
     fn hash<H: Hasher>(&self, state: & mut H) {
         self.mylen.hash(state);
         self.buf.hash(state);
     }
 }
 
-/// Implementation of FifoBytes
-impl FifoBytes {
+/// Implementation of EightBytes
+impl EightBytes {
 
-    /// Creates a new FifoBytes.
+    /// Creates a new EightBytes.
     #[inline]
-    pub fn new() -> FifoBytes {
-        FifoBytes {
+    pub fn new() -> EightBytes {
+        EightBytes {
             buf: 0,
             mylen: 0,
         }
     }
 
-    // Clears the contents of this FifoBytes.
+    // Clears the contents of this EightBytes.
     // The number of elements would become zero.
     #[inline]
     pub fn clear(& mut self) {
@@ -133,6 +139,20 @@ impl FifoBytes {
     }
 
     #[inline]
+    /// Push a value to the front of the buffer.
+    /// No action performed if buffer is full.
+    pub fn push_front(& mut self, v:u8) {
+        if ! self.is_full() {
+            // curlen can be from 0 to 7 when it is not full
+            // so curlen * 8 always less than 64
+            let curlen = self.mylen;
+            let opword = (v as u64) + (self.buf << 8);
+            self.buf = opword;
+            self.mylen = curlen + 1;
+        }
+    }
+
+    #[inline]
     /// Removes the first element and return it.
     /// 'None' is returned if buffer is empty.
     pub fn pop_front(& mut self) -> Option<u8> {
@@ -143,6 +163,23 @@ impl FifoBytes {
             let res = self.buf;
             self.buf = res >> 8;
             self.mylen -= 1;
+            Option::Some(res as u8)
+        }
+    }
+
+    #[inline]
+    /// Removes the last element and return it.
+    /// 'None' is returned if buffer is empty.
+    pub fn pop_back(& mut self) -> Option<u8> {
+        if self.is_empty() {
+            Option::None
+        }
+        else {
+            let newlen = self.mylen - 1;
+            let oldbuf = self.buf;
+            let res = oldbuf >> (newlen << 3);
+            self.mylen = newlen;
+            self.buf = oldbuf - res << (newlen << 3);
             Option::Some(res as u8)
         }
     }
@@ -173,14 +210,27 @@ impl FifoBytes {
         }
     }
 
+    #[inline]
+    /// Peek at the last element without removing it.
+    /// 'None' is returned if there is nothing stored there.
+    pub fn back(&self) -> Option<u8> {
+        if self.is_empty() {
+            Option::None
+        }
+        else {
+            let less_len = self.mylen - 1;
+            let res = self.buf >> (less_len << 3);
+            Option::Some(res as u8)
+        }
+    }
 
 }
 
 /// Implementation of Default trait
-impl Default for FifoBytes {
+impl Default for EightBytes {
     /// Return an empty array
-    fn default() -> FifoBytes {
-        FifoBytes::new()
+    fn default() -> EightBytes {
+        EightBytes::new()
     }
 }
 
@@ -188,32 +238,45 @@ impl Default for FifoBytes {
 mod tests {
     extern crate std;
 
-    use crate::utf8conv::buf::FifoBytes;
+    use crate::utf8conv::buf::EightBytes;
 
     #[test]
     /// Simple ringbuffer test
-    fn test_fifo_aaa() {
-        let mut b1:FifoBytes = FifoBytes::new();
+    fn test_ringbuffer_aaa() {
+        let mut b1:EightBytes = EightBytes::new();
         assert_eq!(b1.capacity(), 8);
         assert_eq!(b1.len(), 0);
         assert_eq!(b1.is_empty(), true);
         assert_eq!(b1.is_full(), false);
         assert_eq!(b1.pop_front(), Option::None);
+        assert_eq!(b1.pop_back(), Option::None);
         assert_eq!(b1.front(), Option::None);
+        assert_eq!(b1.back(), Option::None);
         b1.push_back(11u8);
         assert_eq!(b1.len(), 1);
         assert_eq!(b1.is_empty(), false);
         assert_eq!(b1.is_full(), false);
-        b1.clear();
+        assert_eq!(b1.front(), Option::Some(11u8));
+        assert_eq!(b1.back(), Option::Some(11u8));
+        assert_eq!(b1.pop_back(), Option::Some(11u8));
         assert_eq!(b1.is_empty(), true);
         assert_eq!(b1.is_full(), false);
+        assert_eq!(b1.front(), Option::None);
+        assert_eq!(b1.back(), Option::None);
         assert_eq!(b1.len(), 0u32);
-        b1.push_back(11u8);
-        assert_eq!(b1.front(), Option::Some(11u8));
-        b1.push_back(12u8);
+        b1.push_front(12u8);
+        assert_eq!(b1.front(), Option::Some(12u8));
+        assert_eq!(b1.back(), Option::Some(12u8));
+        assert_eq!(b1.peek_at(0), Option::Some(12u8));
+        b1.push_front(11u8);
+        assert_eq!(b1.peek_at(0), Option::Some(11u8));
         assert_eq!(b1.peek_at(1), Option::Some(12u8));
+        assert_eq!(b1.front(), Option::Some(11u8));
+        assert_eq!(b1.back(), Option::Some(12u8));
         b1.push_back(13u8);
-        assert_eq!(b1.peek_at(2), Option::Some(13u8));
+        assert_eq!(b1.front(), Option::Some(11u8));
+        assert_eq!(b1.peek_at(1), Option::Some(12u8));
+        assert_eq!(b1.back(), Option::Some(13u8));
         b1.push_back(14u8);
         assert_eq!(b1.peek_at(3), Option::Some(14u8));
         b1.push_back(15u8);
@@ -239,8 +302,8 @@ mod tests {
 
     #[test]
     /// Test pusing to full, then empty.
-    fn test_fifobytes_add_del() {
-        let mut b1:FifoBytes = FifoBytes::new();
+    fn test_eightbytes_add_del() {
+        let mut b1:EightBytes = EightBytes::new();
         for indx in 0u32 .. b1.capacity() + 1 {
             if indx < b1.capacity() {
                 assert_eq!(indx, b1.len());
@@ -268,13 +331,13 @@ mod tests {
 
     #[test]
     /// Randomized buffer push_back / pop_front / front.
-    fn test_fifobytes_random() {
+    fn test_eightbytes_random() {
         use rand::Rng;
         use rand::SeedableRng;
         use rand::rngs::SmallRng;
         // use rand::RngCore;
 
-        let mut b1:FifoBytes = FifoBytes::new();
+        let mut b1:EightBytes = EightBytes::new();
         let mut rng = SmallRng::seed_from_u64(0x12e415a46274f230u64);
         for _indx in 0usize .. 3000usize {
             let dice: f64 = rng.gen();
