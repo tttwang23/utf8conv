@@ -296,8 +296,8 @@ mod tests {
         assert_eq!(b1.pop_front(), Option::Some(15u8));
         assert_eq!(b1.pop_front(), Option::Some(16u8));
         assert_eq!(b1.pop_front(), Option::Some(17u8));
-        assert_eq!(b1.pop_front(), Option::Some(18u8));
-        assert_eq!(b1.pop_front(), Option::None);
+        assert_eq!(b1.pop_back(), Option::Some(18u8));
+        assert_eq!(b1.pop_back(), Option::None);
     }
 
     #[test]
