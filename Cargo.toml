@@ -1,15 +1,15 @@
 [package]
 name = "utf8conv"
-version = "0.0.1"
+version = "0.0.2"
 authors = [ "thomaswang1964@yahoo.com" ]
 description = "A UTF8 / Unicode Converter for no_std"
 license = "MIT or Apache 2.0"
 repository = "https://github.com/tttwang23/utf8conv"
 readme = "README.md"
 documentation = "https://docs.rs/utf8conv"
-keywords = ["parser", "unicode", "no_std"]
-categories = ["parsing", "no-std"]
-edition = "2021"
+keywords = ["utf8", "unicode", "no_std"]
+categories = ["utf8", "no-std"]
+edition = "2018"
 autoexamples = false
 
 include = [
