@@ -1,14 +1,15 @@
 [package]
 name = "utf8conv"
-version = "0.0.2"
+version = "0.0.5"
 authors = [ "thomaswang1964@yahoo.com" ]
 description = "A UTF8 / Unicode Converter for no_std"
-license = "MIT or Apache 2.0"
+license = "MIT OR Apache 2.0"
 repository = "https://github.com/tttwang23/utf8conv"
 readme = "README.md"
 documentation = "https://docs.rs/utf8conv"
-keywords = ["utf8", "unicode", "no_std"]
-categories = ["utf8", "no-std"]
+publish = ["crates.io"]
+keywords = ["utf8", "unicode", "chars", "no_std"]
+categories = ["encoding", "localization", "internationalization", "no-std"]
 edition = "2018"
 autoexamples = false
 
@@ -20,7 +21,10 @@ include = [
   "Cargo.toml",
   "/src/*.rs",
   "/src/*/*.rs",
-  "/tests/*.rs"
+  "/examples/*.rs",
+  "/benchmarks/*.rs",
+  "/tests/*.rs",
+  "/doc/*.md"
 ]
 
 [features]
@@ -38,6 +42,17 @@ stackfmt = "0.1.2"
 [build-dependencies]
 version_check = "0.9"
 
+[[example]]
+name = "single_buffer_iterator"
+path = "examples/single_buffer_iterator.rs"
+
+[[example]]
+name = "multi_buffer_iterator"
+path = "examples/multi_buffer_iterator.rs"
+
+[[example]]
+name = "multi_buffer_slice_reading"
+path = "examples/multi_buffer_slice_reading.rs"
 
 [badges]
 maintenance = { status = "experimental" }

@@ -1487,55 +1487,6 @@ mod tests {
 
     use crate::prelude::*;
 
-    #[test]
-    /// Single buffer iterator based UTF8 parsing
-    fn iterator_example() {
-        let mybuffer = "abc\n".as_bytes();
-        let mut utf8_ref_iter = mybuffer.iter();
-        let mut parser = FromUtf8::new();
-        let iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
-        for char_val in iterator {
-            print!("{}", char_val);
-        }
-    }
-
-    #[test]
-    /// Multi-buffer iterator based UTF8 parsing
-    fn iterator_multiple_buffers() {
-        let mybuffers = ["ab".as_bytes(), "c".as_bytes(), "d\n".as_bytes()];
-        let mut parser = FromUtf8::new();
-        for indx in 0 .. mybuffers.len() {
-            parser.set_is_last_buffer(indx == mybuffers.len() - 1);
-            let mut utf8_ref_iter = mybuffers[indx].iter();
-            let iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
-            for char_val in iterator {
-                print!("{}", char_val);
-            }
-        }
-    }
-
-    #[test]
-    /// Multi-buffer slice reading based UTF8 parsing
-    fn parser_multiple_buffers() {
-        let mybuffers = ["ab".as_bytes(), "c".as_bytes(), "d\n".as_bytes()];
-        let mut parser = FromUtf8::new();
-        for indx in 0 .. mybuffers.len() {
-            parser.set_is_last_buffer(indx == mybuffers.len() - 1);
-            let mut cur_slice = mybuffers[indx];
-            loop {
-                match parser.utf8_to_char(cur_slice) {
-                    Result::Ok((slice_pos, char_val)) => {
-                        cur_slice = slice_pos;
-                        print!("{}", char_val);
-                    }
-                    _ => {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
     // Print bytes in hex codes.
     fn _print_bytes(u8_slice: & [u8]) {
         for indx in 0 .. u8_slice.len() {

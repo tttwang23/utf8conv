@@ -253,6 +253,7 @@ mod tests {
         assert_eq!(b1.front(), Option::None);
         assert_eq!(b1.back(), Option::None);
         b1.push_back(11u8);
+        assert_eq!(true, b1.eq(&b1));
         assert_eq!(b1.len(), 1);
         assert_eq!(b1.is_empty(), false);
         assert_eq!(b1.is_full(), false);
