@@ -11,7 +11,7 @@ use utf8conv::prelude::*;
 /// Multi-buffer slice reading based UTF8 parsing
 /// converting to char
 fn main() {
-    let mybuffers = ["Wx".as_bytes(), "y".as_bytes(), "z\n".as_bytes()];
+    let mybuffers = ["Wx".as_bytes(), "".as_bytes(), "yz".as_bytes()];
     let mut parser = FromUtf8::new();
     for indx in 0 .. mybuffers.len() {
         parser.set_is_last_buffer(indx == mybuffers.len() - 1);
@@ -20,7 +20,8 @@ fn main() {
             match parser.utf8_to_char(cur_slice) {
                 Result::Ok((slice_pos, char_val)) => {
                     cur_slice = slice_pos;
-                    print!("{}", char_val);
+                    println!("{}", char_val);
+                    println!("{}", parser.has_invalid_sequence());
                 }
                 Result::Err(MoreEnum::More(_amt)) => {
                     // _amt equals to 0 when end of data

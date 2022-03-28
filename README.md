@@ -17,15 +17,19 @@ Utf8conv is dual licensed under the [MIT License](https://mit-license.org/), and
 ```
 use utf8conv::prelude::*;
 
-    fn iterator_example() {
-        let mybuffer = "abc\n".as_bytes();
-        let mut utf8_ref_iter = mybuffer.iter();
-        let mut parser = FromUtf8::new();
-        let iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
-        for char_val in iterator {
-            print!("{}", char_val);
-        }
+/// Single buffer iterator based UTF8 parsing
+/// converting to char
+fn main() {
+    let mybuffer = "abc".as_bytes();
+    let mut utf8_ref_iter = mybuffer.iter();
+    let mut parser = FromUtf8::new();
+    let mut iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
+    while let Some(char_val) = iterator.next()  {
+        println!("{}", char_val);
+        println!("{}", iterator.has_invalid_sequence());
     }
+}
+
 ```
 
 #### Multi-buffer iterator based UTF8 parsing
@@ -33,18 +37,21 @@ use utf8conv::prelude::*;
 ```
 use utf8conv::prelude::*;
 
-    fn iterator_multiple_buffers() {
-        let mybuffers = ["ab".as_bytes(), "c".as_bytes(), "d\n".as_bytes()];
-        let mut parser = FromUtf8::new();
-        for indx in 0 .. mybuffers.len() {
-            parser.set_is_last_buffer(indx == mybuffers.len() - 1);
-            let mut utf8_ref_iter = mybuffers[indx].iter();
-            let iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
-            for char_val in iterator {
-                print!("{}", char_val);
-            }
+/// Multi-buffer iterator based UTF8 parsing
+/// converting to char
+fn main() {
+    let mybuffers = ["ab".as_bytes(), "".as_bytes(), "cde".as_bytes()];
+    let mut parser = FromUtf8::new();
+    for indx in 0 .. mybuffers.len() {
+        parser.set_is_last_buffer(indx == mybuffers.len() - 1);
+        let mut utf8_ref_iter = mybuffers[indx].iter();
+        let mut iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
+        while let Some(char_val) = iterator.next()  {
+            println!("{}", char_val);
+            println!("{}", iterator.has_invalid_sequence());
         }
     }
+}
 ```
 
 #### Multi-buffer slice reading based UTF8 parsing
@@ -52,23 +59,27 @@ use utf8conv::prelude::*;
 ```
 use utf8conv::prelude::*;
 
-    fn parser_multiple_buffers() {
-        let mybuffers = ["ab".as_bytes(), "c".as_bytes(), "d\n".as_bytes()];
-        let mut parser = FromUtf8::new();
-        for indx in 0 .. mybuffers.len() {
-            parser.set_is_last_buffer(indx == mybuffers.len() - 1);
-            let mut cur_slice = mybuffers[indx];
-            loop {
-                match parser.utf8_to_char(cur_slice) {
-                    Result::Ok((slice_pos, char_val)) => {
-                        cur_slice = slice_pos;
-                        print!("{}", char_val);
-                    }
-                    _ => {
-                        break;
-                    }
+/// Multi-buffer slice reading based UTF8 parsing
+/// converting to char
+fn main() {
+    let mybuffers = ["Wx".as_bytes(), "".as_bytes(), "yz".as_bytes()];
+    let mut parser = FromUtf8::new();
+    for indx in 0 .. mybuffers.len() {
+        parser.set_is_last_buffer(indx == mybuffers.len() - 1);
+        let mut cur_slice = mybuffers[indx];
+        loop {
+            match parser.utf8_to_char(cur_slice) {
+                Result::Ok((slice_pos, char_val)) => {
+                    cur_slice = slice_pos;
+                    println!("{}", char_val);
+                    println!("{}", parser.has_invalid_sequence());
+                }
+                Result::Err(MoreEnum::More(_amt)) => {
+                    // _amt equals to 0 when end of data
+                    break;
                 }
             }
         }
     }
+}
 ```

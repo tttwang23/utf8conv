@@ -15,28 +15,30 @@ fn round_trip_iter(char_val: char) {
 
     let mut char_ref_iter = char_box.iter();
     let mut from_unicode = FromUnicode::new();
-    let char_ref_to_utf8 =
+    let mut char_ref_to_utf8 =
         from_unicode.char_ref_to_utf8_with_iter(& mut char_ref_iter);
     let mut byte_box: [u8; 8] = [0; 8];
     let mut byte_len:usize = 0;
 
-    for b in char_ref_to_utf8 {
+    while let Some(b) = char_ref_to_utf8.next() {
         byte_box[byte_len] = b;
         byte_len += 1;
     }
 
     let mut utf8_ref_iter = (&byte_box[0 .. byte_len]).iter();
     let mut from_utf8 = FromUtf8::new();
-    let utf8_to_char =
+    let mut utf8_to_char =
         from_utf8.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
-    for ch in utf8_to_char {
+    while let Some(ch) = utf8_to_char.next() {
         assert_eq!(ch, char_val);
+        if ch == char::REPLACEMENT_CHARACTER {
+            assert_eq!(true, utf8_to_char.has_invalid_sequence());
+            utf8_to_char.reset_invalid_sequence();
+        }
     }
     if char_val == char::REPLACEMENT_CHARACTER {
-        assert_eq!(true, from_utf8.has_invalid_sequence());
-        from_utf8.reset_invalid_sequence();
-        assert_eq!(true, from_unicode.has_invalid_sequence());
-        from_unicode.reset_invalid_sequence();
+        assert_eq!(true, char_ref_to_utf8.has_invalid_sequence());
+        char_ref_to_utf8.reset_invalid_sequence();
     }
 }
 

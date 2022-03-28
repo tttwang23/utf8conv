@@ -8,15 +8,15 @@
 
 use utf8conv::prelude::*;
 
-
 /// Single buffer iterator based UTF8 parsing
 /// converting to char
 fn main() {
-    let mybuffer = "abc\n".as_bytes();
+    let mybuffer = "abc".as_bytes();
     let mut utf8_ref_iter = mybuffer.iter();
     let mut parser = FromUtf8::new();
-    let iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
-    for char_val in iterator {
-        print!("{}", char_val);
+    let mut iterator = parser.utf8_ref_to_char_with_iter(& mut utf8_ref_iter);
+    while let Some(char_val) = iterator.next()  {
+        println!("{}", char_val);
+        println!("{}", iterator.has_invalid_sequence());
     }
 }

@@ -748,7 +748,7 @@ pub struct CharToUtf32Struct<'b> {
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = char>,
 }
 
-// an adapter iterator to convert a char iterator to UTF32 iterator
+/// an adapter iterator to convert a char iterator to UTF32 iterator
 impl<'b> Iterator for CharToUtf32Struct<'b> {
     type Item=u32;
 
@@ -779,8 +779,23 @@ where I: Iterator<Item = char>, {
     }
 }
 
+/// Common operations for UTF conversion parsers
+pub trait UtfParserCommon {
 
-// Struct of FromUtf8
+    fn reset_parser(&mut self);
+
+    fn set_is_last_buffer(&mut self, b: bool);
+
+    fn is_last_buffer(&self) -> bool;
+
+    fn signal_invalid_sequence(& mut self);
+
+    fn has_invalid_sequence(&self) -> bool;
+
+    fn reset_invalid_sequence(& mut self);
+}
+
+/// Struct of FromUtf8
 #[derive(Debug, Clone, Copy)]
 pub struct FromUtf8 {
     my_buf: EightBytes,
@@ -797,57 +812,39 @@ pub struct FromUnicode {
 }
 
 /// Struct of Utf8IterToCharIter
+///
+/// This iterator contains a mutable borrow to the launching
+/// FromUtf8 object while the iterator is alive.
 pub struct Utf8IterToCharIter<'p> {
     my_borrow_mut_iter: &'p mut dyn Iterator<Item = u8>,
-    // Rust language moves an iterator when it is used in a loop;
-    // Info saved in the iterator would become inaccessible.
-    // We have info in a different object to avoid this issue.
-    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
     my_info: &'p mut FromUtf8,
 }
 
 /// Struct of Utf32IterToUtf8Iter
+///
+/// This iterator contains a mutable borrow to the launching
+/// FromUnicode object while the iterator is alive.
 pub struct Utf32IterToUtf8Iter<'q> {
     my_borrow_mut_iter: &'q mut dyn Iterator<Item = u32>,
-    // Rust language moves an iterator when it is used in a loop;
-    // Info saved in the iterator would become inaccessible.
-    // We have info in a different object to avoid this issue.
-    // However, notice in a loop the FromUtf8 struct is uniquely reserved.
     my_info: &'q mut FromUnicode,
 }
 
 /// Struct of Utf8RefIterToCharIter
+///
+/// This iterator contains a mutable borrow to the launching
+/// FromUtf8 object while the iterator is alive.
 pub struct Utf8RefIterToCharIter<'r> {
     my_borrow_mut_iter: &'r mut dyn Iterator<Item = &'r u8>,
-    // Rust language moves an iterator when it is used in a loop;
-    // Info saved in the iterator would become inaccessible.
-    // We have info in a different object to avoid this issue.
-    // However, inside a loop the FromUtf8 struct is uniquely borrowed.
     my_info: &'r mut FromUtf8,
 }
 
 /// Struct of CharRefIterToUtf8Iter
+///
+/// This iterator contains a mutable borrow to the launching
+/// FromUnicode object while the iterator is alive.
 pub struct CharRefIterToUtf8Iter<'s> {
     my_borrow_mut_iter: &'s mut dyn Iterator<Item = &'s char>,
-    // Rust language moves an iterator when it is used in a loop;
-    // Info saved in the iterator would become inaccessible.
-    // We have info in a different object to avoid this issue.
-    // However, inside a loop the FromUnicode struct is uniquely borrowed.
     my_info: &'s mut FromUnicode,
-}
-
-/// Common operations for UTF conversion parsers
-pub trait UtfParserCommon {
-
-    fn reset_parser(&mut self);
-
-    fn set_is_last_buffer(&mut self, b: bool);
-
-    fn is_last_buffer(&self) -> bool;
-
-    fn has_invalid_sequence(&self) -> bool;
-
-    fn reset_invalid_sequence(& mut self);
 }
 
 /// Implementations of common operations for FromUtf8
@@ -871,6 +868,12 @@ impl<'b> UtfParserCommon for FromUtf8 {
     /// in this parsing stream.
     fn has_invalid_sequence(&self) -> bool {
         self.my_invalid_sequence
+    }
+
+    #[inline]
+    /// This function signals the occurrence of an invalid UTF8 sequence.
+    fn signal_invalid_sequence(&mut self) {
+        self.my_invalid_sequence = true;
     }
 
     #[inline]
@@ -909,14 +912,20 @@ impl<'b> UtfParserCommon for FromUnicode {
     }
 
     #[inline]
-    /// This function returns true if invalid UTF8 decodes occurred in this
+    /// This function returns true if invalid UTF32 decodes occurred in this
     /// parsing stream.
     fn has_invalid_sequence(&self) -> bool {
         self.my_invalid_sequence
     }
 
     #[inline]
-    // This function resets the invalid sequence state.
+    /// This function signals the occurrence of an invalid UTF32 sequence.
+    fn signal_invalid_sequence(&mut self) {
+        self.my_invalid_sequence = true;
+    }
+
+    #[inline]
+    /// This function resets the invalid sequence state.
     fn reset_invalid_sequence(&mut self) {
         self.my_invalid_sequence = false;
     }
@@ -966,6 +975,7 @@ impl FromUtf8 {
     pub fn utf8_to_char<'b>(&mut self, input: &'b [u8])
     -> Result<(&'b [u8], char), MoreEnum> {
         let mut my_cursor: &[u8] = input;
+        let last_buffer = self.my_last_buffer;
         // Fill buffer phase.
         loop {
             if self.my_buf.is_full() || (my_cursor.len() == 0) {
@@ -978,7 +988,7 @@ impl FromUtf8 {
         if self.my_buf.is_empty() {
             // Processing for buffer being empty case
             // Determine if we are at end of data.
-            if self.my_last_buffer {
+            if last_buffer {
                 // at end of data condition
                 Result::Err(MoreEnum::More(0))
             }
@@ -988,9 +998,9 @@ impl FromUtf8 {
             }
         }
         else {
-            match utf8_decode(& mut self.my_buf, self.my_last_buffer) {
+            match utf8_decode(& mut self.my_buf, last_buffer) {
                 Utf8EndEnum::BadDecode(_) => {
-                    self.my_invalid_sequence = true;
+                    self.signal_invalid_sequence();
                     Result::Ok((my_cursor, char::REPLACEMENT_CHARACTER))
                 }
                 Utf8EndEnum::Finish(code) => {
@@ -1001,8 +1011,8 @@ impl FromUtf8 {
                 }
                 Utf8EndEnum::TypeUnknown => {
                     // Insufficient data to decode.
-                    if self.my_last_buffer {
-                        self.my_invalid_sequence = true;
+                    if last_buffer {
+                        self.signal_invalid_sequence();
                         // Buffer should be empty at this point.
                         Result::Ok((my_cursor, char::REPLACEMENT_CHARACTER))
                     }
@@ -1085,7 +1095,7 @@ impl FromUnicode {
         // Processing for input being empty case
         if my_cursor.len() == 0 {
             // Determine if we are at end of data.
-            if self.my_last_buffer {
+            if self.is_last_buffer() {
                 // at end of data condition
                 return Result::Err(MoreEnum::More(0));
             }
@@ -1120,7 +1130,7 @@ impl FromUnicode {
             _ => {
                 // Invalid UTF32 codepoint
                 // Emit replacement byte sequence.
-                self.my_invalid_sequence = true;
+                self.signal_invalid_sequence();
                 self.my_buf.push_back(REPLACE_PART2);
                 self.my_buf.push_back(REPLACE_PART3);
                 Result::Ok((my_cursor, REPLACE_PART1))
@@ -1149,7 +1159,7 @@ impl FromUnicode {
         // Processing for input being empty case
         if my_cursor.len() == 0 {
             // Determine if we are at end of data.
-            if self.my_last_buffer {
+            if self.is_last_buffer() {
                 // at end of data condition
                 return Result::Err(MoreEnum::More(0));
             }
@@ -1184,7 +1194,7 @@ impl FromUnicode {
             _ => {
                 // Invalid UTF32 codepoint
                 // Emit replacement byte sequence.
-                self.my_invalid_sequence = true;
+                self.signal_invalid_sequence();
                 self.my_buf.push_back(REPLACE_PART2);
                 self.my_buf.push_back(REPLACE_PART3);
                 Result::Ok((my_cursor, REPLACE_PART1))
@@ -1212,6 +1222,50 @@ impl FromUnicode {
         }
     }
 
+}
+
+/// Implementations of common operations for Utf8IterToCharIter
+impl<'g> UtfParserCommon for Utf8IterToCharIter<'g> {
+
+    #[inline]
+    /// If parameter b is true, then any input buffer to be presented will
+    /// be the last buffer.
+    fn set_is_last_buffer(&mut self, b: bool) {
+        self.my_info.set_is_last_buffer(b);
+    }
+
+    #[inline]
+    /// Returns the last input buffer flag.
+    fn is_last_buffer(&self) -> bool {
+        self.my_info.is_last_buffer()
+    }
+
+    #[inline]
+    /// This function returns true if invalid UTF8 sequence occurred
+    /// in this parsing stream.
+    fn has_invalid_sequence(&self) -> bool {
+        self.my_info.has_invalid_sequence()
+    }
+
+    #[inline]
+    /// This function signals the occurrence of an invalid UTF8 sequence.
+    fn signal_invalid_sequence(&mut self) {
+        self.my_info.signal_invalid_sequence();
+    }
+
+    #[inline]
+    /// This function resets the invalid decodes state.
+    fn reset_invalid_sequence(& mut self) {
+        self.my_info.reset_invalid_sequence();
+    }
+
+    #[inline]
+    /// Reset all parser states to the initial value.
+    /// Last buffer indication is set to true.
+    /// Invalid decodes indication is cleared.
+    fn reset_parser(&mut self) {
+        self.my_info.reset_parser();
+    }
 }
 
 /// Iterator for Utf8IterToCharIter
@@ -1249,9 +1303,10 @@ impl<'g> Iterator for Utf8IterToCharIter<'g> {
             Option::None
         }
         else {
-            match utf8_decode(& mut self.my_info.my_buf, self.my_info.my_last_buffer) {
+            let last_buffer = self.my_info.is_last_buffer();
+            match utf8_decode(& mut self.my_info.my_buf, last_buffer) {
                 Utf8EndEnum::BadDecode(_) => {
-                    self.my_info.my_invalid_sequence = true;
+                    self.my_info.signal_invalid_sequence();
                     Option::Some(char::REPLACEMENT_CHARACTER)
                 }
                 Utf8EndEnum::Finish(code) => {
@@ -1262,8 +1317,8 @@ impl<'g> Iterator for Utf8IterToCharIter<'g> {
                 }
                 Utf8EndEnum::TypeUnknown => {
                     // Insufficient data to decode.
-                    if self.my_info.my_last_buffer {
-                        self.my_info.my_invalid_sequence = true;
+                    if last_buffer {
+                        self.my_info.signal_invalid_sequence();
                         // Buffer should be empty at this point.
                         Option::Some(char::REPLACEMENT_CHARACTER)
                     }
@@ -1278,6 +1333,50 @@ impl<'g> Iterator for Utf8IterToCharIter<'g> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
+    }
+}
+
+/// Implementations of common operations for Utf8RefIterToCharIter
+impl<'g> UtfParserCommon for Utf8RefIterToCharIter<'g> {
+
+    #[inline]
+    /// If parameter b is true, then any input buffer to be presented will
+    /// be the last buffer.
+    fn set_is_last_buffer(&mut self, b: bool) {
+        self.my_info.set_is_last_buffer(b);
+    }
+
+    #[inline]
+    /// Returns the last input buffer flag.
+    fn is_last_buffer(&self) -> bool {
+        self.my_info.is_last_buffer()
+    }
+
+    #[inline]
+    /// This function returns true if invalid UTF8 sequence occurred
+    /// in this parsing stream.
+    fn has_invalid_sequence(&self) -> bool {
+        self.my_info.has_invalid_sequence()
+    }
+
+    #[inline]
+    /// This function signals the occurrence of an invalid UTF8 sequence.
+    fn signal_invalid_sequence(&mut self) {
+        self.my_info.signal_invalid_sequence();
+    }
+
+    #[inline]
+    /// This function resets the invalid decodes state.
+    fn reset_invalid_sequence(& mut self) {
+        self.my_info.reset_invalid_sequence();
+    }
+
+    #[inline]
+    /// Reset all parser states to the initial value.
+    /// Last buffer indication is set to true.
+    /// Invalid decodes indication is cleared.
+    fn reset_parser(&mut self) {
+        self.my_info.reset_parser();
     }
 }
 
@@ -1316,9 +1415,10 @@ impl<'g> Iterator for Utf8RefIterToCharIter<'g> {
             Option::None
         }
         else {
-            match utf8_decode(& mut self.my_info.my_buf, self.my_info.my_last_buffer) {
+            let last_buffer = self.my_info.is_last_buffer();
+            match utf8_decode(& mut self.my_info.my_buf, last_buffer) {
                 Utf8EndEnum::BadDecode(_) => {
-                    self.my_info.my_invalid_sequence = true;
+                    self.my_info.signal_invalid_sequence();
                     Option::Some(char::REPLACEMENT_CHARACTER)
                 }
                 Utf8EndEnum::Finish(code) => {
@@ -1329,8 +1429,8 @@ impl<'g> Iterator for Utf8RefIterToCharIter<'g> {
                 }
                 Utf8EndEnum::TypeUnknown => {
                     // Insufficient data to decode.
-                    if self.my_info.my_last_buffer {
-                        self.my_info.my_invalid_sequence = true;
+                    if last_buffer {
+                        self.my_info.signal_invalid_sequence();
                         // Buffer should be empty at this point.
                         Option::Some(char::REPLACEMENT_CHARACTER)
                     }
@@ -1345,6 +1445,50 @@ impl<'g> Iterator for Utf8RefIterToCharIter<'g> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
+    }
+}
+
+/// Implementations of common operations for Utf32IterToUtf8Iter
+impl<'h> UtfParserCommon for Utf32IterToUtf8Iter<'h> {
+
+    #[inline]
+    /// If parameter b is true, then any input buffer to be presented will
+    /// be the last buffer.
+    fn set_is_last_buffer(&mut self, b: bool) {
+        self.my_info.set_is_last_buffer(b);
+    }
+
+    #[inline]
+    /// Returns the last input buffer flag.
+    fn is_last_buffer(&self) -> bool {
+        self.my_info.is_last_buffer()
+    }
+
+    #[inline]
+    /// This function returns true if invalid UTF32 sequence occurred
+    /// in this parsing stream.
+    fn has_invalid_sequence(&self) -> bool {
+        self.my_info.has_invalid_sequence()
+    }
+
+    #[inline]
+    /// This function signals the occurrence of an invalid UTF32 sequence.
+    fn signal_invalid_sequence(&mut self) {
+        self.my_info.signal_invalid_sequence();
+    }
+
+    #[inline]
+    /// This function resets the invalid decodes state.
+    fn reset_invalid_sequence(& mut self) {
+        self.my_info.reset_invalid_sequence();
+    }
+
+    #[inline]
+    /// Reset all parser states to the initial value.
+    /// Last buffer indication is set to true.
+    /// Invalid decodes indication is cleared.
+    fn reset_parser(&mut self) {
+        self.my_info.reset_parser();
     }
 }
 
@@ -1397,7 +1541,7 @@ impl<'h> Iterator for Utf32IterToUtf8Iter<'h> {
                     _ => {
                         // Invalid UTF32 codepoint
                         // Emit replacement byte sequence.
-                        self.my_info.my_invalid_sequence = true;
+                        self.my_info.signal_invalid_sequence();
                         self.my_info.my_buf.push_back(REPLACE_PART2);
                         self.my_info.my_buf.push_back(REPLACE_PART3);
                         Option::Some(REPLACE_PART1)
@@ -1411,6 +1555,50 @@ impl<'h> Iterator for Utf32IterToUtf8Iter<'h> {
         self.my_borrow_mut_iter.size_hint()
     }
 
+}
+
+/// Implementations of common operations for CharRefIterToUtf8Iter
+impl<'h> UtfParserCommon for CharRefIterToUtf8Iter<'h> {
+
+    #[inline]
+    /// If parameter b is true, then any input buffer to be presented will
+    /// be the last buffer.
+    fn set_is_last_buffer(&mut self, b: bool) {
+        self.my_info.set_is_last_buffer(b);
+    }
+
+    #[inline]
+    /// Returns the last input buffer flag.
+    fn is_last_buffer(&self) -> bool {
+        self.my_info.is_last_buffer()
+    }
+
+    #[inline]
+    /// This function returns true if invalid UTF32 sequence occurred
+    /// in this parsing stream.
+    fn has_invalid_sequence(&self) -> bool {
+        self.my_info.has_invalid_sequence()
+    }
+
+    #[inline]
+    /// This function signals the occurrence of an invalid UTF32 sequence.
+    fn signal_invalid_sequence(&mut self) {
+        self.my_info.signal_invalid_sequence();
+    }
+
+    #[inline]
+    /// This function resets the invalid decodes state.
+    fn reset_invalid_sequence(& mut self) {
+        self.my_info.reset_invalid_sequence();
+    }
+
+    #[inline]
+    /// Reset all parser states to the initial value.
+    /// Last buffer indication is set to true.
+    /// Invalid decodes indication is cleared.
+    fn reset_parser(&mut self) {
+        self.my_info.reset_parser();
+    }
 }
 
 /// Iterator for CharRefIterToUtf8Iter
@@ -1463,7 +1651,7 @@ impl<'h> Iterator for CharRefIterToUtf8Iter<'h> {
                     _ => {
                         // Invalid UTF32 codepoint
                         // Emit replacement byte sequence.
-                        self.my_info.my_invalid_sequence = true;
+                        self.my_info.signal_invalid_sequence();
                         self.my_info.my_buf.push_back(REPLACE_PART2);
                         self.my_info.my_buf.push_back(REPLACE_PART3);
                         Option::Some(REPLACE_PART1)
@@ -1479,11 +1667,9 @@ impl<'h> Iterator for CharRefIterToUtf8Iter<'h> {
 
 }
 
-
 #[cfg(test)]
 mod tests {
     extern crate std;
-    extern crate stackfmt;
 
     use crate::prelude::*;
 
