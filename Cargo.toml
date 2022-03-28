@@ -1,13 +1,12 @@
 [package]
 name = "utf8conv"
 version = "0.0.6"
-authors = [ "thomaswang1964@yahoo.com" ]
+authors = [ "tyz18delbar-open@yahoo.com" ]
 description = "A UTF8 / Unicode Converter for no_std"
 license = "MIT OR Apache 2.0"
 repository = "https://github.com/tttwang23/utf8conv"
 readme = "README.md"
 documentation = "https://docs.rs/utf8conv"
-publish = ["crates.io"]
 keywords = ["utf8", "unicode", "chars", "no_std"]
 categories = ["encoding", "localization", "internationalization", "no-std"]
 edition = "2018"
