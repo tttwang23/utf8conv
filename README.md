@@ -6,11 +6,9 @@ Parser for reading and converting between [UTF8](https://en.wikipedia.org/wiki/U
 
 Utf8conv can operate based on a single input buffer, or a series of input buffers.  The outputs are produced one at a time, directly delivered to client caller with minimum latency.
 
-The design of the parser is inspired by [nom](https://github.com/Geal/nom).
-
-The design of the finite state machine used by utf8conv was based on a technical design article written by [Henri Sivonen](https://hsivonen.fi/broken-utf-8/).
-
 Utf8conv is dual licensed under the [MIT License](https://mit-license.org/), and [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0.html).
+
+Credits attribution of utf8conv is located at crate directory doc/utf8conv-credits.md.
 
 #### Single buffer iterator based UTF8 parsing
 
