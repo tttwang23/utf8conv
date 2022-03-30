@@ -7,22 +7,40 @@
 // except according to those terms.
 
 // This is the representation of the replacement character in UTF8 encoding.
-pub const REPLACE_UTF32:u32 = 0xFFFD; /// replacement character (UTF32)
-pub const REPLACE_PART1:u8 = 0xEFu8; /// byte 1 of replacement char in UTF8
-pub const REPLACE_PART2:u8 = 0xBFu8; /// byte 2 of replacement char in UTF8
-pub const REPLACE_PART3:u8 = 0xBDu8; /// byte 3 of replacement char in UTF8
 
-const TYPE2_PREFIX:u32 = 0b1100_0000u32; /// leading bits of byte 1 for type 2 decode
-const TYPE3_PREFIX:u32 = 0b1110_0000u32; /// leading bits of byte 1 for type 3 decode
-const TYPE4_PREFIX:u32 = 0b1111_0000u32; /// leading bits of byte 1 for type 4 decode
+/// replacement character (UTF32)
+pub const REPLACE_UTF32:u32 = 0xFFFD;
 
-const BYTE2_PREFIX:u32 = 0b1000_0000u32; /// leading bits of byte 2 and onwards
+/// byte 1 of replacement char in UTF8
+pub const REPLACE_PART1:u8 = 0xEFu8;
+
+/// byte 2 of replacement char in UTF8
+pub const REPLACE_PART2:u8 = 0xBFu8;
+
+/// byte 3 of replacement char in UTF8
+pub const REPLACE_PART3:u8 = 0xBDu8;
+
+/// leading bits of byte 1 for type 2 decode
+const TYPE2_PREFIX:u32 = 0b1100_0000u32;
+
+/// leading bits of byte 1 for type 3 decode
+const TYPE3_PREFIX:u32 = 0b1110_0000u32;
+
+/// leading bits of byte 1 for type 4 decode
+const TYPE4_PREFIX:u32 = 0b1111_0000u32;
+
+/// leading bits of byte 2 and onwards
+const BYTE2_PREFIX:u32 = 0b1000_0000u32;
 
 // (v & SIX_ONES) << 6 is the same as
 // (v << 6) & SIX_ONES_SHIFTED
 // This breaks up the pattern of using shift units in the same cycle.
-const SIX_ONES_SHIFTED:u32 = 0b111111000000u32; /// 6 bits shifted 6 digits
-const SIX_ONES:u32 = 0b111111u32; /// 0x3F bit mask
+
+/// 6 bits shifted 6 digits
+const SIX_ONES_SHIFTED:u32 = 0b111111000000u32;
+
+/// 0x3F bit mask
+const SIX_ONES:u32 = 0b111111u32;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(nightly, warn(rustdoc::missing_doc_code_examples))]
@@ -75,7 +93,9 @@ pub enum Utf8EndEnum {
 
 #[inline]
 /// Classify an UTF32 value into the type of UTF8 it belongs.
+///
 /// Returning Utf8TypeEnum indicates the sequence length.
+///
 /// Returning Utf8TypeEnum::Type0 indicates error.
 pub fn classify_utf32(code: u32) -> Utf8TypeEnum {
     if code < 0x80u32 {
@@ -491,19 +511,18 @@ fn byte4_action24(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
 
 /// Decode from UTF8 to Unicode code point using a finate state machine.
 ///
-/// parameters:
+/// # Arguments
 ///
-/// mybuf contains the bytes to be decoded
+/// * `mybuf` - contains the bytes to be decoded
 ///
-/// last_buffer is true when we are working on the last byte buffer.
+/// * `last_buffer` - is true when we are working on the last byte buffer.
 ///
-/// When there are more pending data available than what is in 'mybuf', and
-/// with 'last_buffer' being false, then the parser would refuse to work on
-/// potential partial decodes, and returns Utf8EndEnum::TypeUnknown to
-/// ask for more data.
+/// When 'last_buffer' is false, with additional buffers to be processed,
+/// then the parser would refuse to work on potential partial decodes,
+/// and returns Utf8EndEnum::TypeUnknown to ask for more data.
 ///
-/// When there are no more data than what is available in 'mybuf', and with
-/// 'last_buffer' being true, then partial decodes results in
+/// When 'last_buffer' is true, with no more data to process than
+/// what is available in 'mybuf', then partial decodes results in
 /// Utf8EndEnum:BadDecode(n) where n is length of error from 1 to 3 bytes.
 pub fn utf8_decode(mybuf: & mut EightBytes, last_buffer: bool) -> Utf8EndEnum {
     match mybuf.front() {
@@ -678,9 +697,9 @@ impl<'b> Iterator for CharRefToCharStruct<'b> {
 /// Function char_ref_iter_to_char_iter() takes a mutable reference to
 /// a char ref iterator, and return a char iterator in its place.
 ///
-/// parameter
+/// # Arguments
 ///
-/// input: a mutable reference to a char ref iterator
+/// * `input` - a mutable reference to a char ref iterator
 #[inline]
 pub fn char_ref_iter_to_char_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> CharRefToCharStruct<'a>
@@ -716,9 +735,9 @@ impl<'b> Iterator for Utf32RefToUtf32Struct<'b> {
 /// Function utf32_ref_iter_to_utf32_iter() takes a mutable reference to
 /// a UTF32 ref iterator, and return a UTF32 iterator in its place.
 ///
-/// parameter
+/// # Arguments
 ///
-/// input: a mutable reference to a UTF32 ref iterator
+/// * `input` - a mutable reference to a UTF32 ref iterator
 #[inline]
 pub fn utf32_ref_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> Utf32RefToUtf32Struct<'a>
@@ -754,9 +773,9 @@ impl<'b> Iterator for Utf8RefToUtf8Struct<'b> {
 /// Function utf8_ref_iter_to_utf8_iter() takes a mutable reference to
 /// a UTF8 ref iterator, and return a UTF8 iterator in its place.
 ///
-/// parameter
+/// # Arguments
 ///
-/// input: a mutable reference to a UTF8 ref iterator
+/// * `input` - a mutable reference to a UTF8 ref iterator
 #[inline]
 pub fn utf8_ref_iter_to_utf8_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> Utf8RefToUtf8Struct<'a>
@@ -792,9 +811,9 @@ impl<'b> Iterator for CharToUtf32Struct<'b> {
 /// Function char_iter_to_utf32_iter() takes a mutable reference to
 /// a char iterator, and return a UTF32 iterator in its place.
 ///
-/// parameter
+/// # Arguments
 ///
-/// input: a mutable reference to a char iterator
+/// * `input` - a mutable reference to a char iterator
 #[inline]
 pub fn char_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> CharToUtf32Struct<'a>
@@ -812,7 +831,7 @@ pub trait UtfParserCommon {
     /// Invalid decodes indication is cleared.
     fn reset_parser(&mut self);
 
-    /// If parameter b is true, then any input buffer to be presented will
+    /// If argument `b` is true, then any input buffer to be presented will
     /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool);
 
@@ -830,7 +849,7 @@ pub trait UtfParserCommon {
     fn reset_invalid_sequence(& mut self);
 }
 
-/// Struct of FromUtf8
+/// Provides conversion functions from UTF8 to char or UTF32
 #[derive(Debug, Clone, Copy)]
 pub struct FromUtf8 {
     my_buf: EightBytes,
@@ -838,7 +857,7 @@ pub struct FromUtf8 {
     my_invalid_sequence: bool,
 }
 
-/// Struct of FromUnicode
+/// Provides conversion functions from char or UTF32 to UTF8
 #[derive(Debug, Clone, Copy)]
 pub struct FromUnicode {
     my_buf: EightBytes,
@@ -846,37 +865,33 @@ pub struct FromUnicode {
     my_invalid_sequence: bool,
 }
 
-/// Struct of Utf8IterToCharIter
-///
-/// This iterator contains a mutable borrow to the launching
-/// FromUtf8 object while the iterator is alive.
+/// adapter iterator converting from an UTF8 iterator to a char iterator
+/// (This iterator contains a mutable borrow to the launching
+/// FromUtf8 object while this iterator is alive.)
 pub struct Utf8IterToCharIter<'p> {
     my_borrow_mut_iter: &'p mut dyn Iterator<Item = u8>,
     my_info: &'p mut FromUtf8,
 }
 
-/// Struct of Utf32IterToUtf8Iter
-///
-/// This iterator contains a mutable borrow to the launching
-/// FromUnicode object while the iterator is alive.
+/// adapter iterator converting from an UTF32 iterator to an UTF8 iterator
+/// (This iterator contains a mutable borrow to the launching
+/// FromUnicode object while this iterator is alive.)
 pub struct Utf32IterToUtf8Iter<'q> {
     my_borrow_mut_iter: &'q mut dyn Iterator<Item = u32>,
     my_info: &'q mut FromUnicode,
 }
 
-/// Struct of Utf8RefIterToCharIter
-///
-/// This iterator contains a mutable borrow to the launching
-/// FromUtf8 object while the iterator is alive.
+/// adapter iterator converting from an UTF8 ref iterator to char iterator
+/// (This iterator contains a mutable borrow to the launching
+/// FromUtf8 object while this iterator is alive.)
 pub struct Utf8RefIterToCharIter<'r> {
     my_borrow_mut_iter: &'r mut dyn Iterator<Item = &'r u8>,
     my_info: &'r mut FromUtf8,
 }
 
-/// Struct of CharRefIterToUtf8Iter
-///
-/// This iterator contains a mutable borrow to the launching
-/// FromUnicode object while the iterator is alive.
+/// adapter iterator converting from a char ref iterator to an UTF8 iterator
+/// (This iterator contains a mutable borrow to the launching
+/// FromUnicode object while this iterator is alive.)
 pub struct CharRefIterToUtf8Iter<'s> {
     my_borrow_mut_iter: &'s mut dyn Iterator<Item = &'s char>,
     my_info: &'s mut FromUnicode,
@@ -886,7 +901,7 @@ pub struct CharRefIterToUtf8Iter<'s> {
 impl<'b> UtfParserCommon for FromUtf8 {
 
     #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
+    /// If argument `b` is true, then any input buffer to be presented will
     /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool) {
         self.my_last_buffer = b;
@@ -934,7 +949,7 @@ impl<'b> UtfParserCommon for FromUtf8 {
 impl<'b> UtfParserCommon for FromUnicode {
 
     #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
+    /// If argument `b` is true, then any input buffer to be presented will
     /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool) {
         self.my_last_buffer = b;
@@ -1263,7 +1278,7 @@ impl FromUnicode {
 impl<'g> UtfParserCommon for Utf8IterToCharIter<'g> {
 
     #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
+    /// If argument `b` is true, then any input buffer to be presented will
     /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool) {
         self.my_info.set_is_last_buffer(b);
@@ -1376,7 +1391,7 @@ impl<'g> Iterator for Utf8IterToCharIter<'g> {
 impl<'g> UtfParserCommon for Utf8RefIterToCharIter<'g> {
 
     #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
+    /// If argument `b` is true, then any input buffer to be presented will
     /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool) {
         self.my_info.set_is_last_buffer(b);
@@ -1489,7 +1504,7 @@ impl<'g> Iterator for Utf8RefIterToCharIter<'g> {
 impl<'h> UtfParserCommon for Utf32IterToUtf8Iter<'h> {
 
     #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
+    /// If argument `b` is true, then any input buffer to be presented will
     /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool) {
         self.my_info.set_is_last_buffer(b);
@@ -1599,7 +1614,7 @@ impl<'h> Iterator for Utf32IterToUtf8Iter<'h> {
 impl<'h> UtfParserCommon for CharRefIterToUtf8Iter<'h> {
 
     #[inline]
-    /// If parameter b is true, then any input buffer to be presented will
+    /// If argument `b` is true, then any input buffer to be presented will
     /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool) {
         self.my_info.set_is_last_buffer(b);

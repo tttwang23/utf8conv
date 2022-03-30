@@ -202,6 +202,8 @@ pub mod prelude {
     pub use crate::utf8conv::UtfParserCommon;
     pub use crate::utf8conv::Utf8IterToCharIter;
     pub use crate::utf8conv::Utf32IterToUtf8Iter;
+    pub use crate::utf8conv::Utf8RefIterToCharIter;
+    pub use crate::utf8conv::CharRefIterToUtf8Iter;
     pub use crate::utf8conv::Utf8TypeEnum;
     pub use crate::utf8conv::Utf8EndEnum;
     pub use crate::utf8conv::MoreEnum;

@@ -1,6 +1,6 @@
 [package]
 name = "utf8conv"
-version = "0.0.8"
+version = "0.0.9"
 authors = [ "tyz18delbar-open@yahoo.com" ]
 description = "A UTF8 / Unicode Converter for no_std"
 license = "MIT OR Apache-2.0"
@@ -56,6 +56,14 @@ path = "examples/single_buffer_slice_reading.rs"
 [[example]]
 name = "multi_buffer_slice_reading"
 path = "examples/multi_buffer_slice_reading.rs"
+
+[[example]]
+name = "real_io_slice"
+path = "examples/real_io_slice.rs"
+
+[[example]]
+name = "real_io_iterator"
+path = "examples/real_io_iterator.rs"
 
 [badges]
 maintenance = { status = "experimental" }
