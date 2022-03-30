@@ -1,6 +1,6 @@
 [package]
 name = "utf8conv"
-version = "0.0.7"
+version = "0.0.8"
 authors = [ "tyz18delbar-open@yahoo.com" ]
 description = "A UTF8 / Unicode Converter for no_std"
 license = "MIT OR Apache-2.0"
@@ -48,6 +48,10 @@ path = "examples/single_buffer_iterator.rs"
 [[example]]
 name = "multi_buffer_iterator"
 path = "examples/multi_buffer_iterator.rs"
+
+[[example]]
+name = "single_buffer_slice_reading"
+path = "examples/single_buffer_slice_reading.rs"
 
 [[example]]
 name = "multi_buffer_slice_reading"

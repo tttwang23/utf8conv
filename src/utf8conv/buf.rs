@@ -92,21 +92,21 @@ impl EightBytes {
         }
     }
 
-    // Clears the contents of this EightBytes.
-    // The number of elements would become zero.
+    /// Clears the contents of this EightBytes.
+    /// The number of elements would become zero.
     #[inline]
     pub fn clear(& mut self) {
         self.buf = 0u64;
         self.mylen = 0u32;
     }
 
-    // Returns the maximum capacity of this buffer.
+    /// Returns the maximum capacity of this buffer.
     #[inline]
     pub fn capacity(&self) -> u32 {
         BUFFER_SIZE
     }
 
-    // Returns the number of elements in this buffer.
+    /// Returns the number of elements in this buffer.
     #[inline]
     pub fn len(&self) -> u32 {
         self.mylen

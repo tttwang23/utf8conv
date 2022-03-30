@@ -8,9 +8,8 @@
 
 use utf8conv::prelude::*;
 
-/// Single buffer iterator based UTF8 parsing
-/// converting to char
-fn main() {
+/// Single buffer iterator based UTF8 parsing converting to char
+fn utf8_to_char_single_buffer_iterator() {
     let mybuffer = "abc".as_bytes();
     let mut utf8_ref_iter = mybuffer.iter();
     let mut parser = FromUtf8::new();
@@ -19,4 +18,22 @@ fn main() {
         println!("{}", char_val);
         println!("{}", iterator.has_invalid_sequence());
     }
+}
+
+/// Single buffer iterator based char parsing converting to UTF8
+fn char_to_utf8_single_buffer_iterator() {
+    let mybuffer = [ '\u{7F}', '\u{80}', '\u{81}', '\u{82}' ];
+    let mut char_ref_iter = mybuffer.iter();
+    let mut parser = FromUnicode::new();
+    let mut iterator = parser.char_ref_to_utf8_with_iter(& mut char_ref_iter);
+    while let Some(utf8_val) = iterator.next()  {
+        println!("{:#02x}", utf8_val);
+        println!("{}", iterator.has_invalid_sequence());
+    }
+}
+
+fn main() {
+    utf8_to_char_single_buffer_iterator();
+    println!("");
+    char_to_utf8_single_buffer_iterator();
 }

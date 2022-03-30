@@ -7,22 +7,22 @@
 // except according to those terms.
 
 // This is the representation of the replacement character in UTF8 encoding.
-pub const REPLACE_UTF32:u32 = 0xFFFD;
-pub const REPLACE_PART1:u8 = 0xEFu8;
-pub const REPLACE_PART2:u8 = 0xBFu8;
-pub const REPLACE_PART3:u8 = 0xBDu8;
+pub const REPLACE_UTF32:u32 = 0xFFFD; /// replacement character (UTF32)
+pub const REPLACE_PART1:u8 = 0xEFu8; /// byte 1 of replacement char in UTF8
+pub const REPLACE_PART2:u8 = 0xBFu8; /// byte 2 of replacement char in UTF8
+pub const REPLACE_PART3:u8 = 0xBDu8; /// byte 3 of replacement char in UTF8
 
-const TYPE2_PREFIX:u32 = 0b1100_0000u32;
-const TYPE3_PREFIX:u32 = 0b1110_0000u32;
-const TYPE4_PREFIX:u32 = 0b1111_0000u32;
+const TYPE2_PREFIX:u32 = 0b1100_0000u32; /// leading bits of byte 1 for type 2 decode
+const TYPE3_PREFIX:u32 = 0b1110_0000u32; /// leading bits of byte 1 for type 3 decode
+const TYPE4_PREFIX:u32 = 0b1111_0000u32; /// leading bits of byte 1 for type 4 decode
 
-const BYTE2_PREFIX:u32 = 0b1000_0000u32;
+const BYTE2_PREFIX:u32 = 0b1000_0000u32; /// leading bits of byte 2 and onwards
 
 // (v & SIX_ONES) << 6 is the same as
 // (v << 6) & SIX_ONES_SHIFTED
 // This breaks up the pattern of using shift units in the same cycle.
-const SIX_ONES_SHIFTED:u32 = 0b111111000000u32; // 6 bits shifted 6 digits
-const SIX_ONES:u32 = 0b111111u32;
+const SIX_ONES_SHIFTED:u32 = 0b111111000000u32; /// 6 bits shifted 6 digits
+const SIX_ONES:u32 = 0b111111u32; /// 0x3F bit mask
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(nightly, warn(rustdoc::missing_doc_code_examples))]
@@ -31,6 +31,7 @@ const SIX_ONES:u32 = 0b111111u32;
 ///
 /// (These are not really error conditions.)
 pub enum MoreEnum {
+    /// 0: end of data, greater than 0: need more data
     More(u32),
 }
 
@@ -39,20 +40,20 @@ pub enum MoreEnum {
 /// Indication for the type of UTF8 decoding when converting
 /// from UTF32 to UTF8
 pub enum Utf8TypeEnum {
+    /// 1 byte type
     Type1(u8),
-    // 1 byte type
 
+    /// 2 byte type
     Type2((u8,u8)),
-    // 2 byte type
 
+    /// 3 byte type
     Type3((u8,u8,u8)),
-    // 3 byte type
 
+    /// 4 byte type
     Type4((u8,u8,u8,u8)),
-    // 4 byte type
 
-    Type0((u8,u8,u8)),
     // invalid codepoint; substituted with replacement characters
+    Type0((u8,u8,u8)),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -60,9 +61,15 @@ pub enum Utf8TypeEnum {
 /// Utf8EndEnum is the result container for the UTF8 to char
 /// finite state machine.
 pub enum Utf8EndEnum {
-    BadDecode(u32), // bad decode with failure sequence length: 1, 2, or 3
-    Finish(u32), // Finished state with a valid codepoint
-    TypeUnknown, // not enough characters: type unknown
+
+    /// bad decode with failure sequence length: 1, 2, or 3
+    BadDecode(u32),
+
+    /// Finished state with a valid codepoint
+    Finish(u32),
+
+    /// not enough characters: type unknown
+    TypeUnknown,
 }
 
 
@@ -485,7 +492,9 @@ fn byte4_action24(mybuf: & mut EightBytes, arg: u32) -> Utf8EndEnum {
 /// Decode from UTF8 to Unicode code point using a finate state machine.
 ///
 /// parameters:
+///
 /// mybuf contains the bytes to be decoded
+///
 /// last_buffer is true when we are working on the last byte buffer.
 ///
 /// When there are more pending data available than what is in 'mybuf', and
@@ -626,13 +635,21 @@ pub fn utf8_decode(mybuf: & mut EightBytes, last_buffer: bool) -> Utf8EndEnum {
 /// the next input.
 ///
 /// Proposed types of converters:
+///
 /// utf8 ref -> char (direct route)
+///
 /// char ref -> utf8 (another direct route)
+///
 /// ref of char -> char
+///
 /// utf32 ref -> utf32
+///
 /// utf8 ref -> utf8
+///
 /// char -> utf32
+///
 /// utf32 -> utf8
+///
 /// utf8 -> char
 ///
 /// char reference to char iterator struct
@@ -640,7 +657,7 @@ pub struct CharRefToCharStruct<'b> {
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = &'b char>,
 }
 
-// an adapter iterator to convert a char ref iterator to char iterator
+/// an adapter iterator to convert a char ref iterator to char iterator
 impl<'b> Iterator for CharRefToCharStruct<'b> {
     type Item=char;
 
@@ -652,6 +669,7 @@ impl<'b> Iterator for CharRefToCharStruct<'b> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
@@ -661,6 +679,7 @@ impl<'b> Iterator for CharRefToCharStruct<'b> {
 /// a char ref iterator, and return a char iterator in its place.
 ///
 /// parameter
+///
 /// input: a mutable reference to a char ref iterator
 #[inline]
 pub fn char_ref_iter_to_char_iter<'a, I: 'a + Iterator>(input: &'a mut I)
@@ -688,6 +707,7 @@ impl<'b> Iterator for Utf32RefToUtf32Struct<'b> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
@@ -697,6 +717,7 @@ impl<'b> Iterator for Utf32RefToUtf32Struct<'b> {
 /// a UTF32 ref iterator, and return a UTF32 iterator in its place.
 ///
 /// parameter
+///
 /// input: a mutable reference to a UTF32 ref iterator
 #[inline]
 pub fn utf32_ref_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
@@ -724,6 +745,7 @@ impl<'b> Iterator for Utf8RefToUtf8Struct<'b> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
@@ -733,6 +755,7 @@ impl<'b> Iterator for Utf8RefToUtf8Struct<'b> {
 /// a UTF8 ref iterator, and return a UTF8 iterator in its place.
 ///
 /// parameter
+///
 /// input: a mutable reference to a UTF8 ref iterator
 #[inline]
 pub fn utf8_ref_iter_to_utf8_iter<'a, I: 'a + Iterator>(input: &'a mut I)
@@ -760,6 +783,7 @@ impl<'b> Iterator for CharToUtf32Struct<'b> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
@@ -769,6 +793,7 @@ impl<'b> Iterator for CharToUtf32Struct<'b> {
 /// a char iterator, and return a UTF32 iterator in its place.
 ///
 /// parameter
+///
 /// input: a mutable reference to a char iterator
 #[inline]
 pub fn char_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
@@ -782,16 +807,26 @@ where I: Iterator<Item = char>, {
 /// Common operations for UTF conversion parsers
 pub trait UtfParserCommon {
 
+    /// Reset all parser states to the initial value.
+    /// Last buffer indication is set to true.
+    /// Invalid decodes indication is cleared.
     fn reset_parser(&mut self);
 
+    /// If parameter b is true, then any input buffer to be presented will
+    /// be the last buffer.
     fn set_is_last_buffer(&mut self, b: bool);
 
+    /// Returns the last input buffer flag.
     fn is_last_buffer(&self) -> bool;
 
+    /// This function signals the occurrence of an invalid conversion sequence.
     fn signal_invalid_sequence(& mut self);
 
+    /// This function returns true if invalid conversion sequence occurred
+    /// in this parsing stream.
     fn has_invalid_sequence(&self) -> bool;
 
+    /// This function resets the invalid sequence state.
     fn reset_invalid_sequence(& mut self);
 }
 
@@ -877,7 +912,7 @@ impl<'b> UtfParserCommon for FromUtf8 {
     }
 
     #[inline]
-    // This function resets the invalid decodes state.
+    /// This function resets the invalid decodes state.
     fn reset_invalid_sequence(& mut self) {
         self.my_invalid_sequence = false;
     }
@@ -1331,6 +1366,7 @@ impl<'g> Iterator for Utf8IterToCharIter<'g> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
@@ -1443,6 +1479,7 @@ impl<'g> Iterator for Utf8RefIterToCharIter<'g> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
@@ -1551,6 +1588,7 @@ impl<'h> Iterator for Utf32IterToUtf8Iter<'h> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
@@ -1661,6 +1699,7 @@ impl<'h> Iterator for CharRefIterToUtf8Iter<'h> {
         }
     }
 
+    /// sizing hint for iterator, with a lower bound and optional upperbound
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.my_borrow_mut_iter.size_hint()
     }
