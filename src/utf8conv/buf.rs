@@ -29,8 +29,8 @@ impl PartialEq for EightBytes {
     }
 }
 
-/// Ord implementation
-/// Longer length EightBytes being greater, followed by
+/// Ord implementation;
+/// longer length EightBytes being greater, followed by
 /// comparison of most recently pushed bytes
 ///
 /// This object is mutable; do not put EightBytes in a collection
@@ -100,7 +100,7 @@ impl EightBytes {
         self.mylen = 0u32;
     }
 
-    /// Returns the maximum capacity of this buffer.
+    /// Returns the maximum capacity of this buffer. (always 8)
     #[inline]
     pub fn capacity(&self) -> u32 {
         BUFFER_SIZE
@@ -127,6 +127,8 @@ impl EightBytes {
     #[inline]
     /// Push a value to the back of the buffer.
     /// No action performed if buffer is full.
+    /// # Arguments
+    /// * `v` - byte value to be pushed
     pub fn push_back(& mut self, v:u8) {
         if ! self.is_full() {
             // curlen can be from 0 to 7 when it is not full
@@ -141,6 +143,8 @@ impl EightBytes {
     #[inline]
     /// Push a value to the front of the buffer.
     /// No action performed if buffer is full.
+    /// # Arguments
+    /// * `v` - byte value to be pushed
     pub fn push_front(& mut self, v:u8) {
         if ! self.is_full() {
             // curlen can be from 0 to 7 when it is not full

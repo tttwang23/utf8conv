@@ -15,6 +15,9 @@
 //!
 //! An invalid Unicode decoding sequence is replaced with an Unicode Replacement codepoint.
 //!
+//! Includes an adapter iterator to filter out Byte Order Mark at the
+//! beginning of a stream, and substituting carriage returns with newlines.
+//!
 //! utf8conv is dual licensed under the Apache 2.0 license, or the MIT license.
 //!
 //! Source Repository: [link](https://github.com/tttwang23/utf8conv)
@@ -24,7 +27,7 @@
 //! #### Single buffer iterator based parsing
 //!
 //! ```rust
-//! use utf8conv::prelude::*;
+//! use utf8conv::*;
 //!
 //! // Single buffer iterator based UTF8 parsing converting to char
 //! fn utf8_to_char_single_buffer_iterator() {
@@ -54,7 +57,7 @@
 //! #### Multi-buffer iterator based parsing
 //!
 //! ```rust
-//! use utf8conv::prelude::*;
+//! use utf8conv::*;
 //!
 //! // Multi-buffer iterator based UTF8 parsing converting to char
 //! fn utf8_to_char_multi_buffer_iterator() {
@@ -90,7 +93,7 @@
 //! #### Single-buffer slice based parsing
 //!
 //! ```rust
-//! use utf8conv::prelude::*;
+//! use utf8conv::*;
 //!
 //! // Single-buffer slice reading based UTF8 parsing converting to char
 //! fn utf8_to_char_single_buffer_slice_reading() {
@@ -136,7 +139,7 @@
 //! #### Multi-buffer slice based parsing
 //!
 //! ```rust
-//! use utf8conv::prelude::*;
+//! use utf8conv::*;
 //!
 //! // Multi-buffer slice reading based UTF8 parsing converting to char
 //! fn utf8_to_char_multi_buffer_slice_reading() {
@@ -189,31 +192,29 @@
 #[cfg(doctest)]
 extern crate doc_comment;
 
-/// Make common symbols available in our prelude.
-///
-/// use utf8conv::prelude::*;
-pub mod prelude {
-    pub use crate::utf8conv::REPLACE_UTF32;
-    pub use crate::utf8conv::REPLACE_PART1;
-    pub use crate::utf8conv::REPLACE_PART2;
-    pub use crate::utf8conv::REPLACE_PART3;
-    pub use crate::utf8conv::FromUtf8;
-    pub use crate::utf8conv::FromUnicode;
-    pub use crate::utf8conv::UtfParserCommon;
-    pub use crate::utf8conv::Utf8IterToCharIter;
-    pub use crate::utf8conv::Utf32IterToUtf8Iter;
-    pub use crate::utf8conv::Utf8RefIterToCharIter;
-    pub use crate::utf8conv::CharRefIterToUtf8Iter;
-    pub use crate::utf8conv::Utf8TypeEnum;
-    pub use crate::utf8conv::Utf8EndEnum;
-    pub use crate::utf8conv::MoreEnum;
-    pub use crate::utf8conv::classify_utf32;
-    pub use crate::utf8conv::utf8_decode;
-    pub use crate::utf8conv::char_ref_iter_to_char_iter;
-    pub use crate::utf8conv::utf32_ref_iter_to_utf32_iter;
-    pub use crate::utf8conv::utf8_ref_iter_to_utf8_iter;
-    pub use crate::utf8conv::char_iter_to_utf32_iter;
-    pub use crate::utf8conv::buf::EightBytes;
-}
+
+pub use crate::utf8conv::REPLACE_UTF32;
+pub use crate::utf8conv::REPLACE_PART1;
+pub use crate::utf8conv::REPLACE_PART2;
+pub use crate::utf8conv::REPLACE_PART3;
+pub use crate::utf8conv::FromUtf8;
+pub use crate::utf8conv::FromUnicode;
+pub use crate::utf8conv::UtfParserCommon;
+pub use crate::utf8conv::Utf8IterToCharIter;
+pub use crate::utf8conv::Utf32IterToUtf8Iter;
+pub use crate::utf8conv::Utf8RefIterToCharIter;
+pub use crate::utf8conv::CharRefIterToUtf8Iter;
+pub use crate::utf8conv::Utf8TypeEnum;
+pub use crate::utf8conv::Utf8EndEnum;
+pub use crate::utf8conv::MoreEnum;
+pub use crate::utf8conv::classify_utf32;
+pub use crate::utf8conv::utf8_decode;
+pub use crate::utf8conv::char_ref_iter_to_char_iter;
+pub use crate::utf8conv::utf32_ref_iter_to_utf32_iter;
+pub use crate::utf8conv::utf8_ref_iter_to_utf8_iter;
+pub use crate::utf8conv::char_iter_to_utf32_iter;
+pub use crate::utf8conv::filter_bom_and_cr_iter;
+pub use crate::utf8conv::buf::EightBytes;
+
 
 mod utf8conv;

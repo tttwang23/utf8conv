@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 
 // Have a char value go through a round trip of conversions.

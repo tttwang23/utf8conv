@@ -13,7 +13,7 @@ use std::error::Error;
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 /// Read bytes without I/O interrupts.
 /// Returns the number of bytes read or an IO Error.

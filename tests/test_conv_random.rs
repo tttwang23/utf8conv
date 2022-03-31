@@ -11,7 +11,7 @@
 extern crate stackfmt;
 extern crate std;
 
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 use rand::SeedableRng;
 use rand::rngs::SmallRng;

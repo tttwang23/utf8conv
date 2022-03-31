@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 /// Single buffer iterator based UTF8 parsing converting to char
 fn utf8_to_char_single_buffer_iterator() {

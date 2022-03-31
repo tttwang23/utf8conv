@@ -32,6 +32,15 @@ const TYPE4_PREFIX:u32 = 0b1111_0000u32;
 /// leading bits of byte 2 and onwards
 const BYTE2_PREFIX:u32 = 0b1000_0000u32;
 
+/// Unicode Byte Order Marker character
+const BOM:char = '\u{FEFF}';
+
+/// carriage return character
+const CR:char = '\r';
+
+/// new-line character
+const NL:char = '\n';
+
 // (v & SIX_ONES) << 6 is the same as
 // (v << 6) & SIX_ONES_SHIFTED
 // This breaks up the pattern of using shift units in the same cycle.
@@ -49,6 +58,7 @@ const SIX_ONES:u32 = 0b111111u32;
 ///
 /// (These are not really error conditions.)
 pub enum MoreEnum {
+
     /// 0: end of data, greater than 0: need more data
     More(u32),
 }
@@ -70,7 +80,7 @@ pub enum Utf8TypeEnum {
     /// 4 byte type
     Type4((u8,u8,u8,u8)),
 
-    // invalid codepoint; substituted with replacement characters
+    /// invalid codepoint; substituted with replacement characters
     Type0((u8,u8,u8)),
 }
 
@@ -94,9 +104,11 @@ pub enum Utf8EndEnum {
 #[inline]
 /// Classify an UTF32 value into the type of UTF8 it belongs.
 ///
-/// Returning Utf8TypeEnum indicates the sequence length.
+/// Returning Utf8TypeEnum::Type 1 to 4 indicates the sequence length.
 ///
 /// Returning Utf8TypeEnum::Type0 indicates error.
+/// # Arguments
+/// * `code` - the codepoint to be classified
 pub fn classify_utf32(code: u32) -> Utf8TypeEnum {
     if code < 0x80u32 {
         Utf8TypeEnum::Type1(code as u8)
@@ -655,15 +667,15 @@ pub fn utf8_decode(mybuf: & mut EightBytes, last_buffer: bool) -> Utf8EndEnum {
 ///
 /// Proposed types of converters:
 ///
-/// utf8 ref -> char (direct route)
+/// utf8 reference -> char (direct route)
 ///
-/// char ref -> utf8 (another direct route)
+/// char reference -> utf8 (another direct route)
 ///
-/// ref of char -> char
+/// char refernce -> char
 ///
-/// utf32 ref -> utf32
+/// utf32 reference -> utf32
 ///
-/// utf8 ref -> utf8
+/// utf8 reference -> utf8
 ///
 /// char -> utf32
 ///
@@ -673,10 +685,12 @@ pub fn utf8_decode(mybuf: & mut EightBytes, last_buffer: bool) -> Utf8EndEnum {
 ///
 /// char reference to char iterator struct
 pub struct CharRefToCharStruct<'b> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = &'b char>,
 }
 
-/// an adapter iterator to convert a char ref iterator to char iterator
+/// an adapter iterator to convert a char reference iterator to char iterator
 impl<'b> Iterator for CharRefToCharStruct<'b> {
     type Item=char;
 
@@ -695,11 +709,11 @@ impl<'b> Iterator for CharRefToCharStruct<'b> {
 }
 
 /// Function char_ref_iter_to_char_iter() takes a mutable reference to
-/// a char ref iterator, and return a char iterator in its place.
+/// a char reference iterator, and return a char iterator in its place.
 ///
 /// # Arguments
 ///
-/// * `input` - a mutable reference to a char ref iterator
+/// * `input` - a mutable reference to a char reference iterator
 #[inline]
 pub fn char_ref_iter_to_char_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> CharRefToCharStruct<'a>
@@ -711,10 +725,12 @@ where I: Iterator<Item = &'a char>, {
 
 /// UTF32 reference to UTF32 iterator struct
 pub struct Utf32RefToUtf32Struct<'b> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = &'b u32>,
 }
 
-/// an adapter iterator to convert a UTF32 ref iterator to UTF32 iterator
+/// an adapter iterator to convert a UTF32 reference iterator to UTF32 iterator
 impl<'b> Iterator for Utf32RefToUtf32Struct<'b> {
     type Item=u32;
 
@@ -733,11 +749,11 @@ impl<'b> Iterator for Utf32RefToUtf32Struct<'b> {
 }
 
 /// Function utf32_ref_iter_to_utf32_iter() takes a mutable reference to
-/// a UTF32 ref iterator, and return a UTF32 iterator in its place.
+/// a UTF32 reference iterator, and return a UTF32 iterator in its place.
 ///
 /// # Arguments
 ///
-/// * `input` - a mutable reference to a UTF32 ref iterator
+/// * `input` - a mutable reference to a UTF32 reference iterator
 #[inline]
 pub fn utf32_ref_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> Utf32RefToUtf32Struct<'a>
@@ -749,10 +765,12 @@ where I: Iterator<Item = &'a u32>, {
 
 /// UTF8 reference to UTF8 iterator struct
 pub struct Utf8RefToUtf8Struct<'b> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = &'b u8>,
 }
 
-/// an adapter iterator to convert a UTF8 ref iterator to UTF8 iterator
+/// an adapter iterator to convert a UTF8 reference iterator to UTF8 iterator
 impl<'b> Iterator for Utf8RefToUtf8Struct<'b> {
     type Item=u8;
 
@@ -771,11 +789,11 @@ impl<'b> Iterator for Utf8RefToUtf8Struct<'b> {
 }
 
 /// Function utf8_ref_iter_to_utf8_iter() takes a mutable reference to
-/// a UTF8 ref iterator, and return a UTF8 iterator in its place.
+/// a UTF8 reference iterator, and return a UTF8 iterator in its place.
 ///
 /// # Arguments
 ///
-/// * `input` - a mutable reference to a UTF8 ref iterator
+/// * `input` - a mutable reference to a UTF8 reference iterator
 #[inline]
 pub fn utf8_ref_iter_to_utf8_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 -> Utf8RefToUtf8Struct<'a>
@@ -787,6 +805,8 @@ where I: Iterator<Item = &'a u8>, {
 
 /// char to UTF32 iterator struct
 pub struct CharToUtf32Struct<'b> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'b mut dyn Iterator<Item = char>,
 }
 
@@ -820,6 +840,101 @@ pub fn char_iter_to_utf32_iter<'a, I: 'a + Iterator>(input: &'a mut I)
 where I: Iterator<Item = char>, {
     CharToUtf32Struct {
         my_borrow_mut_iter: input,
+    }
+}
+
+/// BomAndCarriageReturnFilterStruct contains states tracking
+/// iterator filtering states of Byte Order Mark, and Carriage Return
+/// characters.
+pub struct BomAndCarriageReturnFilterStruct<'b> {
+
+    /// the source iterator
+    my_borrow_mut_iter: &'b mut dyn Iterator<Item = char>,
+
+    /// true at the start of iterator stream
+    my_start_stream: bool,
+
+    /// last character was a carriage return
+    my_prev_cr: bool,
+}
+
+/// an adapter iterator to filter BOM and Carriage Return characters
+impl<'b> Iterator for BomAndCarriageReturnFilterStruct<'b> {
+    type Item=char;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.my_borrow_mut_iter.next() {
+                Option::None => {
+                    break Option::None;
+                }
+                Option::Some(v) => {
+                    if self.my_start_stream {
+                        if v == BOM {
+                            self.my_start_stream = false; // no longer at start
+                            continue; // skip BOM
+                        }
+                        else {
+                            self.my_start_stream = false;
+                        }
+                    }
+                    if self.my_prev_cr {
+                        // Previous character was a carriage return and
+                        // already substituted with new-line.
+                        if v == NL {
+                            // CR - NL pair found
+                            self.my_prev_cr = false;
+                            continue;
+                        }
+                        else if v == CR {
+                            // CR - CR found
+                            // substitue the second CR with NL
+                            break Option::Some(NL);
+                        }
+                        else {
+                            // CR - non-line-end-char
+                            self.my_prev_cr = false;
+                        }
+                    }
+                    else if v == CR {
+                        self.my_prev_cr = true;
+                        // substitute CR with NL
+                        break Option::Some(NL);
+                    }
+                    break Option::Some(v);
+                }
+            }
+        }
+    }
+
+    /// sizing hint for iterator, with a lower bound and optional upperbound
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.my_borrow_mut_iter.size_hint()
+    }
+}
+
+/// Function filter_bom_and_cr_iter() takes a mutable reference to
+/// a char iterator, and return a filtered char iterator in its place.
+///
+/// The output iterator will remove a potential Byte Order Mark at
+/// the beginning of a stream.
+///
+/// The output iterator will standardize on newline character line
+/// ending convention, removing carriage returns and substituting them
+/// with newlines.
+///
+/// # Arguments
+///
+/// * `input` - a mutable reference to a char iterator
+#[inline]
+pub fn filter_bom_and_cr_iter<'a, I: 'a + Iterator>(input: &'a mut I)
+-> BomAndCarriageReturnFilterStruct<'a>
+where I: Iterator<Item = char>, {
+    BomAndCarriageReturnFilterStruct {
+        my_borrow_mut_iter: input,
+        my_start_stream: true,
+        my_prev_cr: false,
     }
 }
 
@@ -869,7 +984,11 @@ pub struct FromUnicode {
 /// (This iterator contains a mutable borrow to the launching
 /// FromUtf8 object while this iterator is alive.)
 pub struct Utf8IterToCharIter<'p> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'p mut dyn Iterator<Item = u8>,
+
+    /// mutable reference to FromUtf8 object
     my_info: &'p mut FromUtf8,
 }
 
@@ -877,23 +996,35 @@ pub struct Utf8IterToCharIter<'p> {
 /// (This iterator contains a mutable borrow to the launching
 /// FromUnicode object while this iterator is alive.)
 pub struct Utf32IterToUtf8Iter<'q> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'q mut dyn Iterator<Item = u32>,
+
+    /// mutable reference to FromUnicode object
     my_info: &'q mut FromUnicode,
 }
 
-/// adapter iterator converting from an UTF8 ref iterator to char iterator
+/// adapter iterator converting from an UTF8 reference iterator to char iterator
 /// (This iterator contains a mutable borrow to the launching
 /// FromUtf8 object while this iterator is alive.)
 pub struct Utf8RefIterToCharIter<'r> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'r mut dyn Iterator<Item = &'r u8>,
+
+    /// mutable reference to FromUtf8 object
     my_info: &'r mut FromUtf8,
 }
 
-/// adapter iterator converting from a char ref iterator to an UTF8 iterator
+/// adapter iterator converting from a char reference iterator to an UTF8 iterator
 /// (This iterator contains a mutable borrow to the launching
 /// FromUnicode object while this iterator is alive.)
 pub struct CharRefIterToUtf8Iter<'s> {
+
+    /// the source iterator
     my_borrow_mut_iter: &'s mut dyn Iterator<Item = &'s char>,
+
+    /// mutable reference to FromUnicode object
     my_info: &'s mut FromUnicode,
 }
 
@@ -1099,7 +1230,7 @@ impl FromUtf8 {
         }
     }
 
-    /// Convert from UTF8 ref to char with a mutable reference
+    /// Convert from UTF8 reference to char with a mutable reference
     /// to the source UTF8 iterator.
     pub fn utf8_ref_to_char_with_iter<'d>(&'d mut self, iter: &'d mut dyn Iterator<Item = &'d u8>)
     -> Utf8RefIterToCharIter {
@@ -1262,8 +1393,8 @@ impl FromUnicode {
         }
     }
 
-    /// Convert from char ref iter to UTF8 iter with a mutable reference
-    /// to the source char ref iterator.
+    /// Convert from char reference iter to UTF8 iter with a mutable reference
+    /// to the source char reference iterator.
     pub fn char_ref_to_utf8_with_iter<'d>(&'d mut self, iter: &'d mut dyn Iterator<Item = &'d char>)
     -> CharRefIterToUtf8Iter {
         CharRefIterToUtf8Iter {
@@ -1725,7 +1856,7 @@ impl<'h> Iterator for CharRefIterToUtf8Iter<'h> {
 mod tests {
     extern crate std;
 
-    use crate::prelude::*;
+    use crate::*;
 
     // Print bytes in hex codes.
     fn _print_bytes(u8_slice: & [u8]) {
@@ -1734,6 +1865,36 @@ mod tests {
             print!(" {:#02x}", b);
         }
         println!("");
+    }
+
+    #[test]
+    // Test BOM and CR filtering
+    fn test_filter_bom_and_cr() {
+        let byte_slice = "\u{FEFF}\u{FEFF}\r\nA\r\rB\rCD\r\n\nEF\r\n\r\nG\n\r".as_bytes();
+        let mut byte_ref_iter = byte_slice.iter();
+        let mut from_utf8 = FromUtf8::new();
+        let mut utf8_to_char_iter = from_utf8.utf8_ref_to_char_with_iter(& mut byte_ref_iter);
+        let mut filter_iter = filter_bom_and_cr_iter(& mut utf8_to_char_iter);
+        // Only one Byte Order Mark should be removed.
+        assert_eq!(Some('\u{FEFF}'), filter_iter.next());
+        assert_eq!(Some('\n'), filter_iter.next()); // CR - NL => NL
+        assert_eq!(Some('A'), filter_iter.next());
+        assert_eq!(Some('\n'), filter_iter.next()); // CR, CR => NL, NL
+        assert_eq!(Some('\n'), filter_iter.next());
+        assert_eq!(Some('B'), filter_iter.next());
+        assert_eq!(Some('\n'), filter_iter.next()); // CR => NL
+        assert_eq!(Some('C'), filter_iter.next());
+        assert_eq!(Some('D'), filter_iter.next());
+        assert_eq!(Some('\n'), filter_iter.next()); // CR NL => NL
+        assert_eq!(Some('\n'), filter_iter.next()); // NL => NL
+        assert_eq!(Some('E'), filter_iter.next());
+        assert_eq!(Some('F'), filter_iter.next());
+        assert_eq!(Some('\n'), filter_iter.next()); // CR NL => NL
+        assert_eq!(Some('\n'), filter_iter.next()); // CR => NL
+        assert_eq!(Some('G'), filter_iter.next());
+        assert_eq!(Some('\n'), filter_iter.next()); // NL => NL
+        assert_eq!(Some('\n'), filter_iter.next()); // CR => NL
+        assert_eq!(Option::None, filter_iter.next());
     }
 
     // Have a char value go through a round trip of conversions.

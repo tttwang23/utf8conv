@@ -6,6 +6,8 @@ Parser for reading and converting between [UTF8](https://en.wikipedia.org/wiki/U
 
 Utf8conv can operate based on a single input buffer, or a series of input buffers.  The outputs are produced one at a time, directly delivered to client caller with minimum latency.
 
+Includes an adapter iterator to filter out Byte Order Mark at the beginning of a stream, and substituting carriage returns with newlines.
+
 Utf8conv is dual licensed under the [MIT License](https://mit-license.org/), and [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0.html).
 
 Source Repository: [link](https://github.com/tttwang23/utf8conv)
@@ -15,7 +17,7 @@ Credits attribution of utf8conv is located in source directory doc/utf8conv-cred
 #### Single buffer iterator based parsing
 
 ```rust
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 /// Single buffer iterator based UTF8 parsing converting to char
 fn utf8_to_char_single_buffer_iterator() {
@@ -45,7 +47,7 @@ fn char_to_utf8_single_buffer_iterator() {
 #### Multi-buffer iterator based parsing
 
 ```rust
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 /// Multi-buffer iterator based UTF8 parsing converting to char
 fn utf8_to_char_multi_buffer_iterator() {
@@ -81,7 +83,7 @@ fn char_to_utf8_multi_buffer_iterator() {
 #### Single-buffer slice based parsing
 
 ```rust
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 /// Single-buffer slice reading based UTF8 parsing converting to char
 fn utf8_to_char_single_buffer_slice_reading() {
@@ -127,7 +129,7 @@ fn utf32_to_utf8_single_buffer_slice_reading() {
 #### Multi-buffer slice based parsing
 
 ```rust
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 /// Multi-buffer slice reading based UTF8 parsing converting to char
 fn utf8_to_char_multi_buffer_slice_reading() {

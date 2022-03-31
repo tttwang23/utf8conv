@@ -10,7 +10,7 @@ use std::error::Error;
 use std::io;
 use std::io::prelude::*;
 use std::fs::File;
-use utf8conv::prelude::*;
+use utf8conv::*;
 
 /// Example program demonstrating converting UTF8 to char while reading a file.
 /// Exercise slice parsing style API.
